@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: App_DISP
+Version: 1.0
+Summary: Data Interpreter for STELUM and PULSE
+Author: Nathan Guyot
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: summary
