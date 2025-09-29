@@ -53,6 +53,11 @@ default_url = "/files"
 
 store_inputs = dcc.Store(id="store-inputs",storage_type="session")
 store_datatable_data = dcc.Store(id="store-datatable-data",storage_type="session")
+store_paths = dcc.Store(id="store-path", storage_type="session")
+store_stelum = dcc.Store(id="store-stelum", storage_type="session")
+store_pulse = dcc.Store(id="store-stelum", storage_type="session")
+store_eig = dcc.Store(id="store-stelum", storage_type="session")
+
 
 sidebar = html.Div(
         [
@@ -103,6 +108,10 @@ app.layout = dmc.MantineProvider(
             sidebar,               # your dbc sidebar
             store_inputs,          # dcc.Store
             store_datatable_data,  # dcc.Store
+            store_paths,
+            store_stelum,
+            store_pulse,
+            store_eig
             *page_modules.values() # your pages
         ],
         style={"display": "block"}

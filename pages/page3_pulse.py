@@ -171,20 +171,17 @@ layout = html.Div(
                         ),
                         html.Hr(style={"width": "100%"}),
                         html.Div(
-                            id="pulse-graph-label-container",
+                            id="pulse-graph-args",
                             style={"height":"20%","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center","marginBottom":"1vh","marginTop":"1vh"},
                             children=[
-                                 html.Span("Graph label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                                 dbc.Input(id="pulse-graph-label", placeholder="[name1:label1,name2:label2..] <--> [4G_R0005-core_he_0.01:X(He)_{core}=0.01,...]", style={"height": "100%", "width": "85%"}),
+                                 html.Span("Graph args: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
+                                 dbc.Input(id="pulse-graph-label", placeholder="[name1:[args1],name2:[args2]..]", style={"height": "100%", "width": "85%"}),
                             ]
                         ),
                         html.Div(
-                            id="pulse-graph-color-container",
-                            style={"height":"20%","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center","marginBottom":"2vh"},
-                            children=[
-                                 html.Span("Graph color: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                                 dbc.Input(id="pulse-graph-color", placeholder="[name1:color1,name2:color2..] <--> [4G_R0005-core_he_0.01:rgba(123,3,54,1),...]", style={"height": "100%", "width": "85%"}),
-                            ]
+                            id="pulse-graph-args-exemple",
+                            style={"height":"20%","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center","marginBottom":"1vh","marginTop":"1vh"},
+                            children = [html.Span("Input example: [4G_R005-core_he_0.01:[label=X, color=rgba(255, 0, 0, 1), linestyle=dashed...]]", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"})]
                         ),
                         html.Div(
                             id="pulse-graph-color-picker",
@@ -197,15 +194,13 @@ layout = html.Div(
                                 "justifyContent": "center"
                             },
                             children = [
-                                html.Div(style={"height":"100%","width":"50%","display":"flex","justifyContent":"center","alignItems":"center"},
-                                children = [html.Span("RGBA Color picker: ", className="subtitles-config", style={"fontSize": "3vh", "marginRight": "1%"})]),
                                 html.Div(
                                 style={
                                 "height": "100%",
-                                "width": "50%",
+                                "width": "100%",
                                 "display": "flex",
                                 "flexDirection": "column",
-                                "alignItems": "flex-start",
+                                "alignItems": "center",
                                 "justifyContent": "center"
                             },
                             children=[
