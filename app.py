@@ -38,16 +38,18 @@ app.index_string = """
 """
 
 page_modules = {}
+layouts = []
+
 for _, module_name, _ in pkgutil.iter_modules(pages.__path__):
-    module = importlib.import_module(f"pages.{module_name}") #careful about structure here, needs to be Dash.pages
+    module = importlib.import_module(f"pages.{module_name}")
     if hasattr(module, "layout") and hasattr(module, "page_url"):
-        page_modules[module.page_url] = module.layout
+        page_modules[module.page_url] = module
+        layouts.append(module.layout)
 
 page_urls = list(page_modules.keys())
-layouts = list(page_modules.values())
 
-icons = ["F","S","P","E"]
-names = ["Files","STELUM","PULSE","EIG"]
+icons = ["F","DB"]
+names = ["Files","Dashboard"]
 
 default_url = "/files"
 
@@ -55,8 +57,11 @@ store_inputs = dcc.Store(id="store-inputs",storage_type="session")
 store_datatable_data = dcc.Store(id="store-datatable-data",storage_type="session")
 store_paths = dcc.Store(id="store-path", storage_type="session")
 store_stelum = dcc.Store(id="store-stelum", storage_type="session")
-store_pulse = dcc.Store(id="store-stelum", storage_type="session")
-store_eig = dcc.Store(id="store-stelum", storage_type="session")
+store_pulse = dcc.Store(id="store-pulse", storage_type="session")
+store_eig = dcc.Store(id="store-eig", storage_type="session")
+store_active_tab = dcc.Store(id="store-active-tab", storage_type="session")
+store_displayed = dcc.Store(id="store-displayed", storage_type="session")
+store_dropdown_values = dcc.Store(id="store-dropdown-values",storage_type="session")
 
 
 sidebar = html.Div(
@@ -87,36 +92,36 @@ sidebar = html.Div(
     Input("url", "pathname")
 )
 def display_page(pathname):
-
     if pathname not in page_modules:
         pathname = default_url
-    
-    outputs = []
-    for page_url in page_urls:
-        if pathname == page_url:
-            outputs.append({"display": "block"})
-        else:
-            outputs.append({"display": "none"})
-    return outputs
+
+    return [
+        {"display": "block"} if pathname == page_modules[page_url].page_url else {"display": "none"}
+        for page_url in page_modules
+    ]
 
 app.layout = dmc.MantineProvider(
-    theme={"colorScheme": "light"},  # or "dark"
+    theme={"colorScheme": "light"},
     children=html.Div(
         id="main-app",
         children=[
             dcc.Location(id="url", refresh=False),
-            sidebar,               # your dbc sidebar
-            store_inputs,          # dcc.Store
-            store_datatable_data,  # dcc.Store
+            sidebar,
+            store_inputs,
+            store_datatable_data,
             store_paths,
             store_stelum,
             store_pulse,
-            store_eig
-            *page_modules.values() # your pages
+            store_eig,
+            store_active_tab,
+            store_displayed,
+            store_dropdown_values,
+            *layouts
         ],
         style={"display": "block"}
     )
 )
+
 
 def open_browser():
     if not os.environ.get("WERKZEUG_RUN_MAIN"): #prevent double window opening

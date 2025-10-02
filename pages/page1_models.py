@@ -1,4 +1,4 @@
-from dash import register_page, html, callback, Input, Output, State, dcc, MATCH, ALL, dash_table
+from dash import register_page, html, callback, Input, Output, State, dcc, MATCH, ALL, dash_table, ctx
 import dash
 import dash_bootstrap_components as dbc
 import dash_latex as dl
@@ -8,7 +8,8 @@ import plotly.express as px
 from DISP import data_reading
 from collections import OrderedDict
 import platform
-import json
+import copy
+import numpy as np
 
 page_url = "/files"
 
@@ -53,12 +54,12 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
         **{f'{key}': table_data[key] for key in retained_keys}
         }))
 
-        store_datatable_data["table_data"] = df_data.to_dict("records")
+        store_datatable_data["table_data"] = {col: df_data[col] for col in df_data.columns}
         store_datatable_data["names"] = names
         store_datatable_data["stelum_paths"] = [str(p) for p in model_paths["STELUM"]]
         store_datatable_data["pulse_paths"] = [str(p) for p in model_paths["PULSE"]]
         store_datatable_data["eig_paths"] = [str(p) for p in model_paths["EIG"]]
-        store_datatable_data["spe"] = spe_str
+        store_datatable_data["spe"] = spe
         store_datatable_data["model_type"] = types
         store_datatable_data["init"] = False
 
@@ -81,12 +82,12 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
 
         df_data = pd.concat([df_old, df_new], ignore_index=True)
 
-        store_datatable_data["table_data"] = df_data.to_dict("records")
+        store_datatable_data["table_data"] = {col: df_data[col] for col in df_data.columns}
         store_datatable_data["names"].extend(names)
         store_datatable_data["stelum_paths"].extend([str(p) for p in model_paths["STELUM"]])
         store_datatable_data["pulse_paths"].extend([str(p) for p in model_paths["PULSE"]])
         store_datatable_data["eig_paths"].extend([str(p) for p in model_paths["EIG"]])
-        store_datatable_data["spe"].extend(spe_str)
+        store_datatable_data["spe"].extend(spe)
         store_datatable_data["model_type"].extend(types)
 
     children=[
@@ -95,7 +96,7 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
                 className="datatable-wrapper",
                 children=[
                     dash_table.DataTable(
-                    id='freq_table',
+                    id='freq-table',
                     data=df_data.to_dict("records"),
                     filter_action="native",
                     sort_action="native",
@@ -152,12 +153,15 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
     Output("store-inputs","data"),
     Output("store-datatable-data","data"),
     Input("input-path-btn","n_clicks"),
+    Input("freq-table","data"),
     State("input-path-files","value"),
     State("store-inputs","data"),
     State("store-datatable-data","data"),
     prevent_initial_call=True,
 )
-def add_datatable_data(clicks_add, input_path, store_inputs, store_datatable_data):
+def add_datatable_data(clicks_add, table_data, input_path, store_inputs, store_datatable_data):
+
+    print("add_datatable_data: ", ctx.triggered_id)
 
     if input_path is None:
         raise dash.exceptions.PreventUpdate
@@ -173,24 +177,29 @@ def add_datatable_data(clicks_add, input_path, store_inputs, store_datatable_dat
     if store_datatable_data is None:
         store_datatable_data = {"table_data":[], "names":[], "stelum_paths":[], "pulse_paths":[], "eig_paths":[], "spe":[], "model_type":[], "init":True}
 
-    try:
-        table_data, names, model_paths, spe, model_type = data_reading.datatable_mainframe(input_path)
-    except Exception as e: ##just for me during debugging
-        import traceback
-        print("Error:", e)
-        traceback.print_exc()
-        raise dash.exceptions.PreventUpdate
+    if ctx.triggered_id == "input-path-btn":
+        try:
+            table_data, names, model_paths, spe, model_type = data_reading.datatable_mainframe(input_path)
+        except Exception as e: ##just for me during debugging
+            import traceback
+            print("Error:", e)
+            traceback.print_exc()
+            raise dash.exceptions.PreventUpdate
 
-    if str(input_path) in store_inputs["inputs"]:
-        raise dash.exceptions.PreventUpdate
+        if str(input_path) in store_inputs["inputs"]:
+            raise dash.exceptions.PreventUpdate
+        else:
+            store_inputs["inputs"].append(str(input_path))
+            data_table, store_datatable_data = dataTable_creation(store_datatable_data, table_data, names, spe, model_type, model_paths)
+            #table_data is data parsed from gbuilder or (?) (?) --> not coded yet
+            #names - model names, either from gbuilder or (?)
+            #model_paths are the paths or all models from gbuilder or (?)
+            return(data_table, store_inputs, store_datatable_data)
     else:
-        store_inputs["inputs"].append(str(input_path))
-        data_table, store_datatable_data = dataTable_creation(store_datatable_data, table_data, names, spe, model_type, model_paths)
-        #table_data is data parsed from gbuilder or (?) (?) --> not coded yet
-        #names - model names, either from gbuilder or (?)
-        #model_paths are the paths or all models from gbuilder or (?)
-        return(data_table, store_inputs, store_datatable_data)
+        display = [value["display"] for value in table_data]
+        store_datatable_data["table_data"]["display"] = display
 
+        return(dash.no_update, dash.no_update, store_datatable_data)
 
 layout = html.Div(
     id="files",
@@ -223,7 +232,7 @@ layout = html.Div(
                                                     className="datatable-wrapper",
                                                     children=[
                                             dash_table.DataTable(
-                                                        id='freq_table',
+                                                        id='freq-table',
                                                         data=df_freq.to_dict('records'),
                                                         style_table={
                                                             "overflowY": "hidden",

@@ -231,6 +231,28 @@ span.input_text{
 .btn-tab {
     background-color: var(--input-bg);
     color: var(--txt-launch-abort);
+    border: none;
+    font-size: 3vh;
+    font-weight: bold;
+    border-radius: 0.5rem;
+}
+
+.btn-choosen {
+    background-color: var(--input-focus-bg);
+    color: var(--txt-launch-abort);
+    border: none;
+    font-size: 3vh;
+    font-weight: bold;
+    border-radius: 0.5rem;
+}
+
+.btn-tab:hover {
+    background-color: var(--input-focus-bg);
+}
+
+.btn-tab {
+    background-color: var(--input-bg);
+    color: var(--txt-launch-abort);
     border-top: 0.2vh solid var(--bs-gradient-1);
     border-left: 0.2vh solid var(--bs-gradient-1);
     border-right: 0.2vh solid var(--bs-gradient-1);
