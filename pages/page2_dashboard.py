@@ -96,6 +96,8 @@ def store_file_data(store_datatable_data, store_displayed):
             store_displayed[f"{name}"] = data_reading.data_parsing(spe, path_stelum, path_pulse) #returns {"stelum":{},"pulse":{}} dict of dict
             #might be some huge overhead but we'll see, with the lenght of the files
             #I'm concerned about the .eig in particular...
+        
+        return(store_displayed)
 
 
     except Exception as e: ##just for me during debugging
@@ -105,21 +107,37 @@ def store_file_data(store_datatable_data, store_displayed):
         raise(dash.exceptions.PreventUpdate)
 
 
-@callback(
-    Output("dropdown-x","options"),
-    Output("dropdown-y","options"),
-    Output("dropdown-x","value"),
-    Output("dropdown-y","value"),
+@callback( #here, change dropdown children so we can keep values as Inputs aswell !
+    Output("dropdown-div","children"),
     Output("store-dropdown-values","data"),
     Input("store-displayed","data"),
     Input("store-active-tab","data"),
-    State("dropdown-x","value"),
-    State("dropdown-y","value"),
-    State("dropdown-x","options"),
-    State("dropdown-y","options"),
+    Input("dropdown-x","value"),
+    Input("dropdown-y","value"),
+    Input("x-range","value"),
+    Input("y-range","value"),
+    Input('x-scale',"value"),
+    Input("y-scale","value"),
+    Input("x-reversed","value"),
+    Input("y-reversed","value"),
+    Input("x-label","value"),
+    Input("y-label","value"),
+    Input("graph-label","value"),
+    Input("btn-add-line","n_clicks"),
+    Input("btn-remove-line","n_clicks"),
+    State("dropdown-div","children"),
     State("store-dropdown-values","data"),
+    State("line-value","value"),
+    State("line-limits","value"),
+    State("line-direction","value"),
+    State("line-width", "value"),
+    State("line-style", "value"),
+    State("line-label","value"),
+    State("line-color","value"),
 )
-def main_update_func(store_displayed, store_active_tab, value_x, value_y, options_x, options_y, store_dropdown_values):
+def main_update_func(store_displayed, store_active_tab, value_x, value_y, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, graph_labels, add_line, remove_line, dropdown_children, store_dropdown_values, line_value, line_limits, line_direction, line_width, line_style, line_label, line_color):
+
+    print(ctx.triggered_id)
 
     tab = store_active_tab["active_tab"]
     prev_tab = store_active_tab["previous_tab"]
@@ -130,20 +148,18 @@ def main_update_func(store_displayed, store_active_tab, value_x, value_y, option
     if ctx.triggered_id == "store-active-tab": #this changes the dropdown only on tab change + allows keeping the values of dropdown in between tab changes
 
         if tab == "stelum":
-            store_dropdown_values[prev_tab] = [value_x, value_y] #store the values for next time
-            options_x = [{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options]
-            options_y = options_x
-            value_x = store_dropdown_values[tab][0] #update the tab values with the previous ones
-            value_y = store_dropdown_values[tab][1] #basically this allows a type of persistence
+            store_dropdown_values[prev_tab] = [value_x, value_y]
+            dropdown_children = html.Div(children=[dcc.Dropdown(id="dropdown-x", options=[{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options], style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},value=store_dropdown_values[tab][0],clearable=False),
+            dcc.Dropdown(id="dropdown-y", options=[{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options], style={"height": "100%", "width": "98%", "marginRight": "2%"},value=store_dropdown_values[tab][1],clearable=False)], id=f"dropdown-wrapper-{tab}",style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"},)
 
         elif tab == "pulse":
             store_dropdown_values[prev_tab] = [value_x, value_y]
-            options_x = [{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options]
-            options_y = options_x
-            value_x = store_dropdown_values[tab][0]
-            value_y = store_dropdown_values[tab][1]
+            print(store_dropdown_values[prev_tab])
+            print(store_dropdown_values[tab])
+            dropdown_children = html.Div(children=[dcc.Dropdown(id="dropdown-x", options=[{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options], style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},value=store_dropdown_values[tab][0],clearable=False),
+            dcc.Dropdown(id="dropdown-y", options=[{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options], style={"height": "100%", "width": "98%", "marginRight": "2%"},value=store_dropdown_values[tab][1],clearable=False)], id=f"dropdown-wrapper-{tab}",style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"},)
 
-    return(options_x, options_y, value_x, value_y, store_dropdown_values)
+    return(dropdown_children, store_dropdown_values)
 
 
 layout = html.Div(
@@ -212,11 +228,12 @@ layout = html.Div(
                                 "marginBottom":"2vh"
                             },
                             children=[
-                                html.Div(
+                                html.Div(id="dropdown-div",
                                     style={"width": "66.6%", "height": "100%", "display": "flex", "flexDirection": "row"},
                                     children=[
-                                        dcc.Dropdown(id="dropdown-x", options=[{"label": "placeholder", 'value': "placeholder"}], style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},value="placeholder",clearable=False,persistence=True,persistence_type="session"),
-                                        dcc.Dropdown(id="dropdown-y", options=[{"label": "placeholder", 'value': "placeholder"}], style={"height": "100%", "width": "98%", "marginRight": "2%"},value="placeholder",clearable=False,persistence=True,persistence_type="session")
+                                        html.Div(children=[
+                                        dcc.Dropdown(id="dropdown-x", options=[{"label": "Reduced_Pad", 'value': "Reduced_Pad"}], style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},value="Reduced_Pad",clearable=False,persistence=True,persistence_type="session"),
+                                        dcc.Dropdown(id="dropdown-y", options=[{"label": "Reduced_Pspacing", 'value': "Reduced_Pspacing"}], style={"height": "100%", "width": "98%", "marginRight": "2%"},value="Reduced_Pspacing",clearable=False,persistence=True,persistence_type="session")],style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"},)
                                     ]
                                 ),
                                 html.Div(
