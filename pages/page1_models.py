@@ -161,8 +161,6 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
 )
 def add_datatable_data(clicks_add, table_data, input_path, store_inputs, store_datatable_data):
 
-    print("add_datatable_data: ", ctx.triggered_id)
-
     if input_path is None:
         raise dash.exceptions.PreventUpdate
     else: #Because Windows is as bad as always smiley face

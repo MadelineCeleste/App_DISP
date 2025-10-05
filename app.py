@@ -62,7 +62,8 @@ store_eig = dcc.Store(id="store-eig", storage_type="session")
 store_active_tab = dcc.Store(id="store-active-tab", storage_type="session")
 store_displayed = dcc.Store(id="store-displayed", storage_type="session")
 store_dropdown_values = dcc.Store(id="store-dropdown-values",storage_type="session")
-
+store_graph_options = dcc.Store(id="store-graph-options", storage_type="session")
+#need one for each this way it's easy to keep track of everything in between tabs !
 
 sidebar = html.Div(
         [
@@ -116,14 +117,14 @@ app.layout = dmc.MantineProvider(
             store_active_tab,
             store_displayed,
             store_dropdown_values,
+            store_graph_options,
             *layouts
         ],
         style={"display": "block"}
     )
 )
 
-
-def open_browser():
+def open_browser(): ##That's to open the browser window on start
     if not os.environ.get("WERKZEUG_RUN_MAIN"): #prevent double window opening
 	    webbrowser.open_new("http://localhost:{}".format(port))
 
