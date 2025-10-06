@@ -295,7 +295,7 @@ def mode_spacing(pulse_dict):
         rolled_periods = np.roll(pulse_dict[l]["Pad"],axis=0,shift=-1)
         period_spacings = rolled_periods - periods
         pulse_dict[l]["Pspacing"] = period_spacings
-        pulse_dict[l]["Pspacing"][np.where(pulse_dict[l]["Pspacing"]<0)] = np.nan
+        pulse_dict[l]["Pspacing"] = pulse_dict[l]["Pspacing"][:-1] #careful, this becomes None in JSON serialization
         #obviously we always loose a point, mode spacings being a difference
 
     return(pulse_dict)

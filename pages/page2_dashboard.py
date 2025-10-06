@@ -137,6 +137,9 @@ def store_file_data(store_datatable_data):
 @callback( #changes children on page-change (well, tab change, but you get it)
     Output("dropdown-div","children"),
     Output("store-dropdown-values","data"),
+    Output("displayed-modes","style"),
+    Output("modes-color","style"),
+    Output("separator","style"),
     Input("store-active-tab","data"),
     State("dropdown-x","value"),
     State("dropdown-y","value"),
@@ -163,6 +166,11 @@ def updates_on_tab_change(store_active_tab, value_x, value_y, store_dropdown_val
                         style={"height": "100%", "width": "98%", "marginRight": "2%"},
                         value=store_dropdown_values[tab][1], clearable=False)
         ], id=f"dropdown-wrapper-{tab}", style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"})
+
+        style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"none"}
+        style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}
+        separator = {"width":"90%","display":"none"}
+
     elif tab == "pulse":
         dropdown_children = html.Div(children=[
             dcc.Dropdown(id="dropdown-x", options=[{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options], 
@@ -173,7 +181,12 @@ def updates_on_tab_change(store_active_tab, value_x, value_y, store_dropdown_val
                         value=store_dropdown_values[tab][1], clearable=False)
         ], id=f"dropdown-wrapper-{tab}", style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"})
 
-    return dropdown_children, store_dropdown_values
+        style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"block"}
+        style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"block"}
+        separator = {"width":"90%","display":"block"}
+
+
+    return dropdown_children, store_dropdown_values, style_modes, style_color, separator
 
 def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label):
 
@@ -283,8 +296,13 @@ def memory_dropdown_key_state(value_x, value_y, store_graph_options):
 
     return(label_container, range_container)
 
-def update_children_left_footer(linewidth, linestyle, model_label, color, markers, marker_size, marker_style, marker_color, model_name):
+def update_children_left_footer(linewidth, linestyle, model_label, color, markers, marker_size, marker_style, marker_color, model_name, active_tab):
     
+    if active_tab == "pulse":
+        displayed = "block"
+    else:
+        displayed = "none"
+
     left_footer_children = [
         html.Div(
             id="graph-option-container",
@@ -334,13 +352,15 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
                 html.Div(
                     id="selected-color",
                     style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                )
+                ),
+                html.Hr(id="separator", style={"width":"90%","display":"none"}),
+                dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":displayed}),
+                dbc.Input(id="modes-color", placeholder="color - blue,red,rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":displayed}),
             ]
         )
     ]
     
     return left_footer_children
-
 
 @callback(
     Output("left-footer-container", "children"),
@@ -350,7 +370,7 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
 )
 def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
     sub_store_graph_options = store_graph_options[f"{name}_{store_active_tab['active_tab']}"]
-    left_footer_children = update_children_left_footer(*sub_store_graph_options, model_name=name)
+    left_footer_children = update_children_left_footer(*sub_store_graph_options, name, store_active_tab["active_tab"])
     
     #here you might say "hey wait, why's that guy building the WHOLE left footer children ?"
     #well, it's because otherwise the dbc.Input menu flickers du to the not amazing way Reacts handle those components
@@ -381,6 +401,8 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
     Input("marker-size","value"),
     Input("marker-style","value"),
     Input("marker-color","value"),
+    Input("displayed-modes","value"),
+    Input("modes-color","value"),
     State("store-active-tab","data"),
     State("store-graph-options","data"),
     State("dropdown-x","value"),
@@ -388,7 +410,7 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
     State("dropdown-graph","value"),
     prevent_initial_call=True,
 )
-def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
+def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
 
     n_names = len(store_displayed["names"])
     active_tab = store_active_tab["active_tab"]
@@ -475,6 +497,56 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
             figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y)
             return(figure, store_graph_options)
 
+        if active_tab == "pulse":
+            
+            ## first, we check which modes are going to get funky tonight
+            if not store_graph_options.get("displayed_modes"):
+                if n_names > 1:
+                    if (modes_displayed == "") or (modes_displayed is None):
+                        #no, it's not allowed to view multiple degree AND multiple models at the same time, it's chaos on a graph
+                        #>:(
+                        store_graph_options.update({"displayed_modes":[1]})
+                    else:
+                        if (len(modes_displayed) > 1):
+                            store_graph_options.update({"displayed_modes":[1]})
+                        else:
+                            store_graph_options.update({"displayed_modes":[int(modes_displayed)]})
+
+                elif n_names == 1:
+                    if (modes_displayed == "") or (modes_displayed is None):
+                        #there, now you can view multiple modes :)
+                        store_graph_options.update({"displayed_modes":[store_displayed["L"][0][0][0]]}) #first value in the L array for the singular name
+                        #in case some person has a pulse file with only a l=2, who knows
+                        #the number of 0 in this list is illness though, what the heck
+                    else:
+                        modes_displayed = list(map(int,modes_displayed.split(',')))
+                        store_graph_options.update({"displayed_modes":modes_displayed})
+
+            if not store_graph_options.get("modes_colors"):
+
+                colors = np.array(["blue","red","green","purple"])
+                #yes I know this only accomodate up to l=4, ideally I change it to a cycle
+
+                if (modes_colors != "") and (modes_colors is not None):
+                    modes_colors = modes_colors.split(";")
+                
+                #case where n_names > 1 doesn't matter, it takes color of the graph anyways
+                #because... consistency ? 
+
+                elif n_names == 1:
+                    if (modes_colors == "") or (modes_colors is None):
+                        if store_graph_options.get("displayed_modes"):
+                            colors_indexes = np.array(store_graph_options["displayed_modes"]) - 1
+                            coloring = colors[colors_indexes]
+                        #there, now you can view multiple modes :)
+                        store_graph_options.update({"modes_colors":coloring}) #colors associated to the given "Ls"
+                    else:
+                        store_graph_options.update({"modes_colors":modes_colors})
+
+            figure = updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y)
+            return(figure, store_graph_options)
+
+
     raise(dash.exceptions.PreventUpdate)
 
 def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_x, value_y, tab):
@@ -508,8 +580,8 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
                     range_y[0] = min_y
                 if max_x > range_x[1]:
                     range_x[1] = max_x
-                if max_y < range_y[1]:
-                    range_y[1] = min_y
+                if max_y > range_y[1]:
+                    range_y[1] = max_y
 
         if (x_range != ""):
 
@@ -534,7 +606,63 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
         if y_scale == "log":
             sub_store_graph_options[1] = np.log10(np.array(sub_store_graph_options[1]))
 
+    if tab == "pulse": #needed because not the same structure for pulse and stelum values
+
+        if (x_range == "") or (y_range == ""): #avoid double iterations if both are ""
+            
+            min_x, max_x = np.min(x_values[0][0]), np.max(x_values[0][0])
+            min_y, max_y = np.min(y_values[0][0]), np.max(y_values[0][0])
+            #I mean come on, I can get away with NOT looping on all "L" surely
+            #maybe we have one or two friends out of the picture on the right side, and that's life, how about that
+
+            range_x = [min_x,max_x]
+            range_y = [min_y,max_y]
+
+            for (x_value, y_value) in zip(x_values[0],y_values[0]):
+
+                min_x, max_x = np.min(x_value), np.max(x_value)
+                min_y, max_y = np.min(y_value), np.max(y_value)
+
+                #ew :(
+                if min_x < range_x[0]:
+                    range_x[0] = min_x
+                if min_y < range_y[0]:
+                    range_y[0] = min_y
+                if max_x > range_x[1]:
+                    range_x[1] = max_x
+                if max_y > range_y[1]:
+                    range_y[1] = max_y
+
+            range_x[0], range_x[1] = range_x[0]-10, range_x[1]+10
+            range_y[0], range_y[1] = range_y[0]-10, range_y[1]+10
+
+        if (x_range != ""):
+
+            ranges = x_range.split(",")
+            range_x = [float(ranges[0]), float(ranges[1])]
+
+        if (y_range != ""):
+
+            ranges = y_range.split(",")
+            range_y = [float(ranges[0]), float(ranges[1])]
+
+        sub_store_graph_options[0] = range_x
+        sub_store_graph_options[1] = range_y
+
+        if x_reversed:
+            sub_store_graph_options[0] = sub_store_graph_options[0][::-1]
+        if y_reversed:
+            sub_store_graph_options[1] = sub_store_graph_options[1][::-1]
+
+        if x_scale == "log":
+            sub_store_graph_options[0] = np.log10(np.array(sub_store_graph_options[0]))
+        if y_scale == "log":
+            sub_store_graph_options[1] = np.log10(np.array(sub_store_graph_options[1]))
+
+
     return(sub_store_graph_options)
+
+
 
 def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y):
 
@@ -591,6 +719,162 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
                 size=params[5],
                 color = params[7]
             )))
+
+    fig.update_layout(
+        font=dict(color="black"),
+        legend=dict(
+            xref='paper', yref='paper',  # default
+            x=0.99, y=0.99,
+            xanchor='right', yanchor='top',
+            traceorder='normal'
+        ),
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=True, #force the legend to be displayed even with one trace here
+        #I'd call plotly stupid for this not being default but oh well...
+        xaxis=dict(
+            showgrid=False,
+            title=sub_store_graph_options[6],
+            type=sub_store_graph_options[2],
+            range=sub_store_graph_options[0]
+        ),
+        yaxis=dict(
+            showgrid=False,
+            title=sub_store_graph_options[7],
+            type=sub_store_graph_options[3],
+            range=sub_store_graph_options[1]
+        )
+        )
+
+    return(fig)
+
+def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y):
+
+    sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
+
+    #I actually tried to make it MORE disgusting but really couldn't 
+    if (value_x == "Reduced_Pspacing") or (value_x == "Pspacing") and (value_y != "Reduced_Pspacing") or (value_y != "Pspacing"):
+        for i in range(len(y_values)):
+            for j in range(len(y_values[i])):
+                y_values[i][j] = y_values[i][j][:-1]
+    if (value_x != "Reduced_Pspacing") or (value_x != "Pspacing") and (value_y == "Reduced_Pspacing") or (value_y == "Pspacing"):
+        for i in range(len(x_values)):
+            for j in range(len(x_values[i])):
+                x_values[i][j] = x_values[i][j][:-1]
+
+
+    fig = go.Figure()
+
+    colors = ["blue","red","green","purple","orange","black"]
+    #should be a cycle or a rainbow or whatever can accomodate a larger number of stuff
+    #rainbow seems to be a recipe for inconsistency though.. but it's pretty I'll give you that
+    n_names = len(names)
+
+    #0:x_range, 1:y_range, 2:x_scale, 3:y_scale, 4:x_reversed, 5:y_reversed, 6:x_label, 7:y_label
+
+    if n_names > 1:
+
+        mode = store_graph_options["displayed_modes"][0]-1 #there is only one of those anyways
+        #-1 to account for python indexing, of course
+
+        for i, name in enumerate(names):
+
+            name_graph_options = store_graph_options[f"{name}_pulse"] #obligatory stelum, it's the func for it after all
+            #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+
+            #it's time to set all the defaults yiho
+            params = [2,"solid",name,colors[i],"void",4,"circle",colors[i]]#we keep the colors of the graphs
+
+            for j,param in enumerate(name_graph_options):
+                if param != "":
+                    params[j] = name_graph_options[j]
+
+            if (name_graph_options[7] == "") and (name_graph_options[3] != ""):
+                #just a little something to ensure markers are of the same color of the graph if no color is specified :)
+                params[7] = params[3]
+
+            if name_graph_options[4] == False: #no markers
+
+                fig.add_trace(go.Scatter(
+                x=x_values[i][mode], #for pulse, it's [name_i][l] always
+                y=y_values[i][mode],
+                mode="lines",
+                name=params[2],
+                #ok but what are those parameters names ?
+                #who calls the linestyle "dash" ????
+                line=dict(color=params[3],
+                        width=params[0],
+                        dash=params[1])))
+                
+            else: #markers
+                fig.add_trace(go.Scatter(
+                x=x_values[i][mode],
+                y=y_values[i][mode],
+                mode="lines+markers",
+                name=params[2],
+                #ok but what are those parameters names ?
+                #who calls the linestyle "dash" ????
+                line=dict(color=params[3],
+                        width=params[0],
+                        dash=params[1]),
+                marker=dict(
+                    symbol=params[6],
+                    size=params[5],
+                    color = params[7]
+                )))
+
+    if n_names == 1: #this time, we iterate on modes
+
+        name = names[0] #there is only one
+
+        modes = np.array(store_graph_options["displayed_modes"])-1
+        #-1 to account for python indexing, of course
+        colors = store_graph_options["modes_colors"] #here we take colors per modes, not the graph colors
+
+        for i, mode in enumerate(modes):
+
+            name_graph_options = store_graph_options[f"{name}_pulse"] #obligatory stelum, it's the func for it after all
+            #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+
+            #it's time to set all the defaults yiho
+            params = [2,"solid",name,colors[i],"void",4,"circle",colors[i]] 
+
+            for j,param in enumerate(name_graph_options):
+                if param != "":
+                    params[j] = name_graph_options[j]
+
+            if (name_graph_options[7] == "") and (name_graph_options[3] != ""):
+                #just a little something to ensure markers are of the same color of the graph if no color is specified :)
+                params[7] = params[3]
+
+            if name_graph_options[4] == False: #no markers
+
+                fig.add_trace(go.Scatter(
+                x=x_values[0][mode], #for pulse, it's [name_i][l] always
+                y=y_values[0][mode],
+                mode="lines",
+                name=params[2],
+                #ok but what are those parameters names ?
+                #who calls the linestyle "dash" ????
+                line=dict(color=params[3],
+                        width=params[0],
+                        dash=params[1])))
+                
+            else: #markers
+                fig.add_trace(go.Scatter(
+                x=x_values[0][mode],
+                y=y_values[0][mode],
+                mode="lines+markers",
+                name=params[2],
+                #ok but what are those parameters names ?
+                #who calls the linestyle "dash" ????
+                line=dict(color=params[3],
+                        width=params[0],
+                        dash=params[1]),
+                marker=dict(
+                    symbol=params[6],
+                    size=params[5],
+                    color = params[7]
+                )))
 
     fig.update_layout(
         font=dict(color="black"),
@@ -833,7 +1117,10 @@ layout = html.Div(
                                         html.Div(
                                             id="selected-color",
                                             style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                                        )
+                                        ),
+                                        html.Hr(id="separator", style={"width":"90%","display":"none"}),
+                                        dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":"none"}),
+                                        dbc.Input(id="modes-color", placeholder="color - blue;red;rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}),
                                     ]
                                 )
                             ]
