@@ -5,6 +5,19 @@ Summary: Data Interpreter for STELUM and PULSE
 Author: Nathan Guyot
 Requires-Dist: numpy
 Requires-Dist: matplotlib
+Requires-Dist: scipy
+Requires-Dist: astropy
+Requires-Dist: ffmpeg-python
+Requires-Dist: joblib
+Requires-Dist: anywidget
+Requires-Dist: plotly
+Requires-Dist: pandas
+Requires-Dist: nbformat
+Requires-Dist: dash
+Requires-Dist: dash_bootstrap_components
+Requires-Dist: dash_bootstrap_templates
+Requires-Dist: dash-latex
+Requires-Dist: dash-mantine-components
 Dynamic: author
 Dynamic: requires-dist
 Dynamic: summary

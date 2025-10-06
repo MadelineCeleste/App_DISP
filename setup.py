@@ -9,5 +9,18 @@ setup(name='App_DISP',
       packages_dir={'','.'},
       install_requires=[
           'numpy',
-          'matplotlib']
+          'matplotlib',
+          'scipy',
+          'astropy',
+          'ffmpeg-python',
+          'joblib',
+          'anywidget',
+          'plotly',
+          'pandas',
+          'nbformat',
+          'dash',
+          'dash_bootstrap_components',
+          'dash_bootstrap_templates',
+          'dash-latex',
+          'dash-mantine-components']
       )

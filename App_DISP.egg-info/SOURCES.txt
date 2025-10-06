@@ -9,6 +9,4 @@ DISP/__init__.py
 DISP/data_reading.py
 pages/__init__.py
 pages/page1_models.py
-pages/page2_stelum.py
-pages/page3_pulse.py
-pages/page4_eig.py
+pages/page2_dashboard.py
