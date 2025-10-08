@@ -380,6 +380,21 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
 
     return left_footer_children
 
+@callback(
+    Output("store-line-data","data"),
+    Input("line-value","value"),
+    Input("line-limits","value"),
+    Input("line-direction","value"),
+    Input("line-width","value"),
+    Input("line-style","value"),
+    Input("line-label","value"),
+    Input("line-color","value"),
+    State("dropdown-x","value"),
+    State("dropdown-y","value")
+)
+def update_line_information(line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y):
+    
+
 
 @callback(
     Output("right-side-graph","figure"),
@@ -403,6 +418,8 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
     Input("marker-color","value"),
     Input("displayed-modes","value"),
     Input("modes-color","value"),
+    Input("btn-add-line","n_clicks"),#to add to def
+    Input("btn-remove-line","n_clicks"),#to add to def
     State("store-active-tab","data"),
     State("store-graph-options","data"),
     State("dropdown-x","value"),
@@ -492,6 +509,8 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
         if store_graph_options[f"{dropdown_model_name}_{active_tab}"][5] != '':
             store_graph_options[f"{dropdown_model_name}_{active_tab}"][5] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][5])
 
+        #### Line parsing ####
+
         if active_tab == "stelum":
 
             figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y)
@@ -500,48 +519,49 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
         if active_tab == "pulse":
             
             ## first, we check which modes are going to get funky tonight
-            if not store_graph_options.get("displayed_modes"):
-                if n_names > 1:
-                    if (modes_displayed == "") or (modes_displayed is None):
-                        #no, it's not allowed to view multiple degree AND multiple models at the same time, it's chaos on a graph
-                        #>:(
+            if n_names > 1:
+                if (modes_displayed == "") or (modes_displayed is None):
+                    #no, it's not allowed to view multiple degree AND multiple models at the same time, it's chaos on a graph
+                    #>:(
+                    store_graph_options.update({"displayed_modes":[1]})
+                else:
+                    if (len(modes_displayed) > 1):
                         store_graph_options.update({"displayed_modes":[1]})
                     else:
-                        if (len(modes_displayed) > 1):
-                            store_graph_options.update({"displayed_modes":[1]})
-                        else:
-                            store_graph_options.update({"displayed_modes":[int(modes_displayed)]})
+                        store_graph_options.update({"displayed_modes":[int(modes_displayed)]})
 
-                elif n_names == 1:
-                    if (modes_displayed == "") or (modes_displayed is None):
-                        #there, now you can view multiple modes :)
-                        store_graph_options.update({"displayed_modes":[store_displayed["L"][0][0][0]]}) #first value in the L array for the singular name
-                        #in case some person has a pulse file with only a l=2, who knows
-                        #the number of 0 in this list is illness though, what the heck
-                    else:
-                        modes_displayed = list(map(int,modes_displayed.split(',')))
-                        store_graph_options.update({"displayed_modes":modes_displayed})
+            elif n_names == 1:
+                print(modes_displayed)
+                if (modes_displayed == "") or (modes_displayed is None):
+                    #there, now you can view multiple modes :)
+                    store_graph_options.update({"displayed_modes":[store_displayed["L"][0][0][0]]}) #first value in the L array for the singular name
+                    #in case some person has a pulse file with only a l=2, who knows
+                    #the number of 0 in this list is illness though, what the heck
+                else:
+                    modes_displayed = list(map(int,modes_displayed.split(',')))
+                    store_graph_options.update({"displayed_modes":modes_displayed})
 
-            if not store_graph_options.get("modes_colors"):
+            colors = np.array(["blue","red","green","purple"])
+            #yes I know this only accomodate up to l=4, ideally I change it to a cycle
 
-                colors = np.array(["blue","red","green","purple"])
-                #yes I know this only accomodate up to l=4, ideally I change it to a cycle
+            if (modes_colors != "") and (modes_colors is not None):
+                modes_colors = modes_colors.split(";")
+            
+            #case where n_names doesn't matter, it takes color of the graph anyways
+            #because... consistency ? 
 
-                if (modes_colors != "") and (modes_colors is not None):
-                    modes_colors = modes_colors.split(";")
-                
-                #case where n_names > 1 doesn't matter, it takes color of the graph anyways
-                #because... consistency ? 
-
-                elif n_names == 1:
-                    if (modes_colors == "") or (modes_colors is None):
-                        if store_graph_options.get("displayed_modes"):
-                            colors_indexes = np.array(store_graph_options["displayed_modes"]) - 1
-                            coloring = colors[colors_indexes]
-                        #there, now you can view multiple modes :)
-                        store_graph_options.update({"modes_colors":coloring}) #colors associated to the given "Ls"
-                    else:
-                        store_graph_options.update({"modes_colors":modes_colors})
+            if n_names == 1:
+                "In elif"
+                print(modes_colors)
+                if (modes_colors == "") or (modes_colors is None):
+                    if store_graph_options.get("displayed_modes"):
+                        colors_indexes = np.array(store_graph_options["displayed_modes"]) - 1
+                        coloring = colors[colors_indexes]
+                    #there, now you can view multiple modes :)
+                    store_graph_options.update({"modes_colors":coloring}) #colors associated to the given "Ls"
+                else:
+                    print("In else ! ")
+                    store_graph_options.update({"modes_colors":modes_colors})
 
             figure = updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y)
             return(figure, store_graph_options)
@@ -661,8 +681,6 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
 
 
     return(sub_store_graph_options)
-
-
 
 def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y):
 
@@ -802,7 +820,7 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
                 #ok but what are those parameters names ?
                 #who calls the linestyle "dash" ????
                 line=dict(color=params[3],
-                        width=params[0],
+                        width=params[0],    
                         dash=params[1])))
                 
             else: #markers
