@@ -63,6 +63,7 @@ store_active_tab = dcc.Store(id="store-active-tab", storage_type="session")
 store_displayed = dcc.Store(id="store-displayed", storage_type="session")
 store_dropdown_values = dcc.Store(id="store-dropdown-values",storage_type="session")
 store_graph_options = dcc.Store(id="store-graph-options", storage_type="session")
+store_line_data = dcc.Store(id="store-line-data", storage_type="session")
 #need one for each this way it's easy to keep track of everything in between tabs !
 
 sidebar = html.Div(
@@ -118,6 +119,7 @@ app.layout = dmc.MantineProvider(
             store_displayed,
             store_dropdown_values,
             store_graph_options,
+            store_line_data,
             *layouts
         ],
         style={"display": "block"}

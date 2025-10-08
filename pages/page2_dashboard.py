@@ -382,19 +382,67 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
 
 @callback(
     Output("store-line-data","data"),
-    Input("line-value","value"),
-    Input("line-limits","value"),
-    Input("line-direction","value"),
-    Input("line-width","value"),
-    Input("line-style","value"),
-    Input("line-label","value"),
-    Input("line-color","value"),
+    Input("btn-add-line","n_clicks"),
+    Input("btn-remove-line","n_clicks"),
+    State("line-value","value"),
+    State("line-limits","value"),
+    State("line-direction","value"),
+    State("line-width","value"),
+    State("line-style","value"),
+    State("line-label","value"),
+    State("line-color","value"),
     State("dropdown-x","value"),
-    State("dropdown-y","value")
+    State("dropdown-y","value"),
+    State("store-line-data","data")
 )
-def update_line_information(line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y):
+def update_line_information(click_add, click_remove, line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y, store_line_data):
     
+    if store_line_data is None:
+        store_line_data = {"line_value":[],"line_limits":[],"line_direction":[],"line_style":[], "line_width":[], "line_label":[],"line_color":[], "line_number":0,"line_key":[],"line_dropdown":[]}
 
+    if ctx.triggered_id == "btn-add-line":
+
+        if (line_label is None) or (line_label == ""):
+                #so, this is not optimal because it's shared between all graphs
+                #but I mean the line_label should never be empty anyways, that's just bad practise to not label those by default
+                #hmm, I'd like to have a way to just change the lines even after they're added, but I'm not sure how to do all that
+                #I'll think about it later, first, do the easy things...
+                line_label = f"line_{store_line_data["line_number"]}"
+                store_line_data["line_number"] += 1
+
+        if line_direction == "x":
+            line_key = f"{line_direction}_{value_x}_{line_label}"
+            store_line_data["line_dropdown"].append(value_x)
+        else:
+            line_key = f"{line_direction}_{value_y}_{line_label}"
+            store_line_data["line_dropdown"].append(value_y)
+
+        if (line_value is None) or (line_value == ""):
+            line_value = 0
+        if (line_style is None) or (line_style == ""):
+            line_style = "dash"
+        if (line_color is None) or (line_color == ""):
+            line_color = "red"
+        if (line_width is None) or (line_width == ""):
+            line_width = 1
+
+        if (line_limits is not None) and line_limits != "":
+            line_limits = list(map(float, line_limits.split(",")))
+        else:
+            line_limits = "auto"
+
+        store_line_data["line_value"].append(line_value)
+        store_line_data["line_limits"].append(line_limits)
+        store_line_data["line_direction"].append(line_direction)
+        store_line_data["line_style"].append(line_style)
+        store_line_data["line_width"].append(line_width)
+        store_line_data["line_color"].append(line_color)
+        store_line_data["line_label"].append(line_label)
+        store_line_data["line_key"].append(line_key)
+
+    print(store_line_data)
+
+    return(store_line_data)
 
 @callback(
     Output("right-side-graph","figure"),
@@ -418,8 +466,7 @@ def update_line_information(line_value, line_limits, line_direction, line_width,
     Input("marker-color","value"),
     Input("displayed-modes","value"),
     Input("modes-color","value"),
-    Input("btn-add-line","n_clicks"),#to add to def
-    Input("btn-remove-line","n_clicks"),#to add to def
+    Input("store-line-data","data"),
     State("store-active-tab","data"),
     State("store-graph-options","data"),
     State("dropdown-x","value"),
@@ -427,7 +474,7 @@ def update_line_information(line_value, line_limits, line_direction, line_width,
     State("dropdown-graph","value"),
     prevent_initial_call=True,
 )
-def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
+def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_line_data, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
 
     n_names = len(store_displayed["names"])
     active_tab = store_active_tab["active_tab"]
@@ -513,7 +560,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
 
         if active_tab == "stelum":
 
-            figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y)
+            figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data)
             return(figure, store_graph_options)
 
         if active_tab == "pulse":
@@ -563,7 +610,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
                     print("In else ! ")
                     store_graph_options.update({"modes_colors":modes_colors})
 
-            figure = updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y)
+            figure = updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data)
             return(figure, store_graph_options)
 
 
@@ -682,7 +729,7 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
 
     return(sub_store_graph_options)
 
-def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y):
+def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data):
 
     sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
 
@@ -762,10 +809,52 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
             range=sub_store_graph_options[1]
         )
         )
+    
+
+    if store_line_data is not None:
+
+        #lines additions
+        line_dropdown = np.array(store_line_data["line_dropdown"])
+        x_location = np.where(line_dropdown == value_x)[0]
+        y_location = np.where(line_dropdown == value_y)[0]
+
+        for index in x_location:
+            if store_line_data["line_direction"][index] == "x":
+                fig.add_trace(
+                    go.Scatter(
+                        x=[store_line_data["line_value"][index]] * 2,
+                        y=[fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]],
+                        mode="lines",
+                        line=dict(
+                            width=store_line_data["line_width"][index],
+                            dash=store_line_data["line_style"][index],
+                            color=store_line_data["line_color"][index],
+                        ),
+                        name=store_line_data["line_label"][index],
+                        showlegend=True
+                    )
+                    )
+                
+        for index in y_location:
+            if store_line_data["line_direction"][index] == "y":
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]],
+                            y=[store_line_data["line_value"][index]] * 2,
+                            mode="lines",
+                            line=dict(
+                                width=store_line_data["line_width"][index],
+                                dash=store_line_data["line_style"][index],
+                                color=store_line_data["line_color"][index],
+                            ),
+                            name=store_line_data["line_label"][index],
+                            showlegend=True
+                        )
+                        )
 
     return(fig)
 
-def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y):
+def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data):
 
     sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
 
