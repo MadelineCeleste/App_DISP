@@ -419,30 +419,57 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
             line_key = f"{line_direction}_{value_y}_{line_label}"
             store_line_data["line_dropdown"].append(value_y)
 
-        if (line_value is None) or (line_value == ""):
-            line_value = 0
-        if (line_style is None) or (line_style == ""):
-            line_style = "dash"
-        if (line_color is None) or (line_color == ""):
-            line_color = "red"
-        if (line_width is None) or (line_width == ""):
-            line_width = 1
+        line_keys = np.array(store_line_data["line_key"])
+        key_index = np.where(line_keys == line_key)[0]
 
-        if (line_limits is not None) and line_limits != "":
-            line_limits = list(map(float, line_limits.split(",")))
+        if len(key_index) == 0:
+
+            if (line_value is None) or (line_value == ""):
+                line_value = 0
+            else:
+                line_value = float(line_value)
+            if (line_style is None) or (line_style == ""):
+                line_style = "dash"
+            if (line_color is None) or (line_color == ""):
+                line_color = "red"
+            if (line_width is None) or (line_width == ""):
+                line_width = 1
+            else:
+                line_width = float(line_width)
+
+            if (line_limits is not None) and line_limits != "":
+                line_limits = list(map(float, line_limits.split(",")))
+            else:
+                line_limits = "auto"
+
+            store_line_data["line_value"].append(line_value)
+            store_line_data["line_limits"].append(line_limits)
+            store_line_data["line_direction"].append(line_direction)
+            store_line_data["line_style"].append(line_style)
+            store_line_data["line_width"].append(line_width)
+            store_line_data["line_color"].append(line_color)
+            store_line_data["line_label"].append(line_label)
+            store_line_data["line_key"].append(line_key)
+
         else:
-            line_limits = "auto"
+            raise dash.exceptions.PreventUpdate
 
-        store_line_data["line_value"].append(line_value)
-        store_line_data["line_limits"].append(line_limits)
-        store_line_data["line_direction"].append(line_direction)
-        store_line_data["line_style"].append(line_style)
-        store_line_data["line_width"].append(line_width)
-        store_line_data["line_color"].append(line_color)
-        store_line_data["line_label"].append(line_label)
-        store_line_data["line_key"].append(line_key)
+    if ctx.triggered_id == "btn-remove-line":
 
-    print(store_line_data)
+        if line_direction == "x":
+            line_key = f"{line_direction}_{value_x}_{line_label}"
+        else:
+            line_key = f"{line_direction}_{value_y}_{line_label}"
+
+        line_keys = np.array(store_line_data["line_key"])
+        key_index = np.where(line_keys == line_key)[0]
+
+        if len(key_index) == 1:#there should only be ONE of each keys anyways, otherwise it's weird
+            for key in list(store_line_data.keys()):
+                if key != "line_number":#this feels stupid; maybe line_number should be a local variable in the file, not in the dcc.Store ?
+                    del(store_line_data[key][key_index[0]])
+        else:
+            raise dash.exceptions.PreventUpdate
 
     return(store_line_data)
 
@@ -802,16 +829,25 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
             showgrid=False,
             title=sub_store_graph_options[6],
             type=sub_store_graph_options[2],
-            range=sub_store_graph_options[0]
+            range=sub_store_graph_options[0],
+            showexponent = 'all',
+            exponentformat = 'e',
+            ticks='outside',
+            ticklen=6,
+            tickwidth=2,
         ),
         yaxis=dict(
             showgrid=False,
             title=sub_store_graph_options[7],
             type=sub_store_graph_options[3],
-            range=sub_store_graph_options[1]
+            range=sub_store_graph_options[1],
+            showexponent = 'all',
+            exponentformat = 'e',
+            ticks='outside',
+            ticklen=6,
+            tickwidth=2,
         )
         )
-    
 
     if store_line_data is not None:
 
@@ -820,12 +856,20 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
         x_location = np.where(line_dropdown == value_x)[0]
         y_location = np.where(line_dropdown == value_y)[0]
 
+        yaxis_range = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
+        xaxis_range = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
+
+        if sub_store_graph_options[3] == "log":
+            yaxis_range = [10**yaxis for yaxis in yaxis_range]
+        if sub_store_graph_options[2] == "log":
+            xaxis_range = [10**xaxis for xaxis in xaxis_range]
+
         for index in x_location:
             if store_line_data["line_direction"][index] == "x":
                 fig.add_trace(
                     go.Scatter(
                         x=[store_line_data["line_value"][index]] * 2,
-                        y=[fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]],
+                        y=[yaxis_range[0], yaxis_range[1]],
                         mode="lines",
                         line=dict(
                             width=store_line_data["line_width"][index],
@@ -841,7 +885,7 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
             if store_line_data["line_direction"][index] == "y":
                     fig.add_trace(
                         go.Scatter(
-                            x=[fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]],
+                            x=[xaxis_range[0], xaxis_range[1]],
                             y=[store_line_data["line_value"][index]] * 2,
                             mode="lines",
                             line=dict(
