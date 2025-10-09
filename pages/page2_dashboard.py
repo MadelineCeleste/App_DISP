@@ -32,15 +32,15 @@ pulse_dropdown_options = ["Reduced_Pad","Reduced_Pspacing","Pad","Pspacing","L",
 
 name_options = ["names"]
 
-@callback(
-    Output("selected-color", "children"),
-    Input("color-picker", "value"),
-)
-def pick(color):
-    color = color.lstrip("#")
-    r, g, b = tuple(int(color[i : i + 2], 16) for i in (0, 2, 4))
-    rgba = f"rgba({r}, {g}, {b}, 1)"
-    return html.Span(rgba, className="subtitles-config", style={"fontSize": "2vh"})
+# @callback(
+#     Output("selected-color", "children"),
+#     Input("color-picker", "value"),
+# )
+# def pick(color):
+#     color = color.lstrip("#")
+#     r, g, b = tuple(int(color[i : i + 2], 16) for i in (0, 2, 4))
+#     rgba = f"rgba({r}, {g}, {b}, 1)"
+#     return html.Span(rgba, className="subtitles-config", style={"fontSize": "2vh"})
 
 @callback(
     Output("tab-container","children"), #actually need to change dropdowns and stuff too no ? Or we leave that to display:yes ?
@@ -139,7 +139,7 @@ def store_file_data(store_datatable_data):
     Output("store-dropdown-values","data"),
     Output("displayed-modes","style"),
     Output("modes-color","style"),
-    Output("separator","style"),
+    # Output("separator","style"),
     Input("store-active-tab","data"),
     State("dropdown-x","value"),
     State("dropdown-y","value"),
@@ -169,7 +169,7 @@ def updates_on_tab_change(store_active_tab, value_x, value_y, store_dropdown_val
 
         style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"none"}
         style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}
-        separator = {"width":"90%","display":"none"}
+        # separator = {"width":"90%","display":"none"}
 
     elif tab == "pulse":
         dropdown_children = html.Div(children=[
@@ -183,10 +183,10 @@ def updates_on_tab_change(store_active_tab, value_x, value_y, store_dropdown_val
 
         style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"block"}
         style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"block"}
-        separator = {"width":"90%","display":"block"}
+        # separator = {"width":"90%","display":"block"}
 
-
-    return dropdown_children, store_dropdown_values, style_modes, style_color, separator
+    return dropdown_children, store_dropdown_values, style_modes, style_color
+    # return dropdown_children, store_dropdown_values, style_modes, style_color, separator
 
 def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label):
 
@@ -314,7 +314,7 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
                 dbc.Input(id="graph-width", key=f"graph-width-{model_name}", placeholder="linewidth", value=linewidth, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="graph-style", key=f"graph-style-{model_name}", placeholder="linestyle", value=linestyle, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="graph-label", key=f"graph-label-{model_name}", placeholder="label", value=model_label, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(id="graph-color", key=f"graph-color-{model_name}", placeholder="rgba color (or preset)", value=color, persistence=False, style={"height": "15%", "width": "80%"}),
+                dbc.Input(type="color", id="graph-color", key=f"graph-color-{model_name}", value=color,style={"height":"15%","width":"80%"}),
             ]
         ),
         html.Div(
@@ -329,33 +329,33 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
                     ]),
                 dbc.Input(id="marker-size", key=f"marker-size-{model_name}", placeholder="marker size", value=marker_size, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="marker-style", key=f"marker-style-{model_name}", placeholder="marker style", value=marker_style, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(id="marker-color", key=f"marker-color-{model_name}", placeholder="rgba color (or preset)", value=marker_color, persistence=False, style={"height": "15%", "width": "80%"}),
+                dbc.Input(type="color", id="marker-color", key=f"marker-color-{model_name}", value=marker_color,style={"height":"15%","width":"80%"}),
             ]
         ),
         html.Div(
             id="color-picker-container",
             style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
             children=[
-                dbc.InputGroup(style={"width":"80%"},
-                    children = [
-                        dbc.InputGroupText("Click to pick a color", style={
-                                                                        "textAlign": "center",
-                                                                        "display": "flex",
-                                                                        "alignItems": "center",
-                                                                        "justifyContent": "center",
-                                                                        "width": "100%",
-                                                                        "color":"white",
-                                                                        "marginBottom":"1vh",
-                                                                        "fontSize":"2vh"
-                                                                    },),
-                        dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
-                    ]
-                ),
-                html.Div(
-                    id="selected-color",
-                    style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                ),
-                html.Hr(id="separator", style={"width":"90%","display":"none"}),
+                # dbc.InputGroup(style={"width":"80%"},
+                #     children = [
+                #         dbc.InputGroupText("Click to pick a color", style={
+                #                                                         "textAlign": "center",
+                #                                                         "display": "flex",
+                #                                                         "alignItems": "center",
+                #                                                         "justifyContent": "center",
+                #                                                         "width": "100%",
+                #                                                         "color":"white",
+                #                                                         "marginBottom":"1vh",
+                #                                                         "fontSize":"2vh"
+                #                                                     },),
+                #         dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
+                #     ]
+                # ),
+                # html.Div(
+                #     id="selected-color",
+                #     style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
+                # ),
+                # html.Hr(id="separator", style={"width":"90%","display":"none"}),
                 dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":displayed}),
                 dbc.Input(id="modes-color", placeholder="color - blue,red,rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":displayed}),
             ]
@@ -504,6 +504,9 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
     prevent_initial_call=True,
 )
 def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_line_data, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
+
+    print(marker_color)
+    print(color)
 
     n_names = len(store_displayed["names"])
     active_tab = store_active_tab["active_tab"]
@@ -1232,7 +1235,7 @@ layout = html.Div(
                                         dbc.Input(id="graph-width", placeholder="linewidth", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-style", placeholder="linestyle", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-label", placeholder="label", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(id="graph-color", placeholder="rgba color (or preset)", style={"height": "15%", "width": "80%"}),
+                                        dbc.Input(type="color", id="graph-color", value="#ff0000",style={"height":"15%","width":"80%"}),
                                     ]
                                 ),
                                 html.Div(
@@ -1245,33 +1248,33 @@ layout = html.Div(
                                                 dbc.Checkbox(id="markers", value=False)]),
                                         dbc.Input(id="marker-size", placeholder="marker size", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="marker-style", placeholder="marker style", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(id="marker-color", placeholder="rgba color (or preset)", style={"height": "15%", "width": "80%"}),
+                                        dbc.Input(type="marker-color", id="marker-color", value="#ff0000",style={"height":"15%","width":"80%"}),
                                     ]
                                 ),
                                 html.Div(
                                     id="color-picker-container",
                                     style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
                                     children=[
-                                        dbc.InputGroup(style={"width":"80%"},
-                                            children = [
-                                                dbc.InputGroupText("Click to pick a color", style={
-                                                                                                "textAlign": "center",
-                                                                                                "display": "flex",
-                                                                                                "alignItems": "center",
-                                                                                                "justifyContent": "center",
-                                                                                                "width": "100%",
-                                                                                                "color":"white",
-                                                                                                "marginBottom":"1vh",
-                                                                                                "fontSize":"2vh"
-                                                                                            },),
-                                                dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
-                                            ]
-                                        ),
-                                        html.Div(
-                                            id="selected-color",
-                                            style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                                        ),
-                                        html.Hr(id="separator", style={"width":"90%","display":"none"}),
+                                        # dbc.InputGroup(style={"width":"80%"},
+                                            # children = [
+                                            #     dbc.InputGroupText("Click to pick a color", style={
+                                            #                                                     "textAlign": "center",
+                                            #                                                     "display": "flex",
+                                            #                                                     "alignItems": "center",
+                                            #                                                     "justifyContent": "center",
+                                            #                                                     "width": "100%",
+                                            #                                                     "color":"white",
+                                            #                                                     "marginBottom":"1vh",
+                                            #                                                     "fontSize":"2vh"
+                                            #                                                 },),
+                                            #     dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
+                                            # ]
+                                        # ),
+                                        # html.Div(
+                                        #     id="selected-color",
+                                        #     style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
+                                        # ),
+                                        # html.Hr(id="separator", style={"width":"90%","display":"none"}),
                                         dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":"none"}),
                                         dbc.Input(id="modes-color", placeholder="color - blue;red;rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}),
                                     ]
@@ -1329,7 +1332,7 @@ layout = html.Div(
                                         dbc.Input(id="line-width", placeholder="linewidth", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="line-style", placeholder="linestyle", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="line-label", placeholder="line label", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(id="line-color", placeholder="rgba color", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
+                                        dbc.Input(type="color", id="line-color", value="#ff0000",style={"height":"15%","width":"80%"}),
                                     ]
                                 ),
                                 html.Div(
