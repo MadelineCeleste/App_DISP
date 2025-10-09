@@ -219,7 +219,7 @@ def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reve
                             html.Span("x_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
                             dbc.Input(id="x-label", placeholder="X(He)_{core}", value=x_label, style={"height": "100%", "width": "35%", "marginRight": "5%"}),
                             html.Span("y_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                            dbc.Input(id="y-label", placeholder="latex for save graph", value=y_label, style={"height": "100%", "width": "35%", "marginRight": "5%"})
+                            dbc.Input(id="y-label", placeholder="latex on save graph", value=y_label, style={"height": "100%", "width": "35%", "marginRight": "5%"})
                         ]
                     )
                 ]
@@ -314,7 +314,7 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
                 dbc.Input(id="graph-width", key=f"graph-width-{model_name}", placeholder="linewidth", value=linewidth, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="graph-style", key=f"graph-style-{model_name}", placeholder="linestyle", value=linestyle, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="graph-label", key=f"graph-label-{model_name}", placeholder="label", value=model_label, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(type="color", id="graph-color", key=f"graph-color-{model_name}", value=color,style={"height":"15%","width":"80%"}),
+                dbc.Input(type="color", id="graph-color", key=f"graph-color-{model_name}", value=color,style={"height":"15%","width":"80%"}, debounce=True),
             ]
         ),
         html.Div(
@@ -329,7 +329,7 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
                     ]),
                 dbc.Input(id="marker-size", key=f"marker-size-{model_name}", placeholder="marker size", value=marker_size, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                 dbc.Input(id="marker-style", key=f"marker-style-{model_name}", placeholder="marker style", value=marker_style, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(type="color", id="marker-color", key=f"marker-color-{model_name}", value=marker_color,style={"height":"15%","width":"80%"}),
+                dbc.Input(type="color", id="marker-color", key=f"marker-color-{model_name}", value=marker_color,style={"height":"15%","width":"80%"}, debounce=True),
             ]
         ),
         html.Div(
@@ -433,7 +433,7 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
             if (line_color is None) or (line_color == ""):
                 line_color = "red"
             if (line_width is None) or (line_width == ""):
-                line_width = 1
+                line_width = 2
             else:
                 line_width = float(line_width)
 
@@ -505,9 +505,6 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
 )
 def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_line_data, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
 
-    print(marker_color)
-    print(color)
-
     n_names = len(store_displayed["names"])
     active_tab = store_active_tab["active_tab"]
     
@@ -569,8 +566,11 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
             if not store_graph_options.get(f"{name}_{active_tab}"): #first time the specific trio name_key1_key2 is used
 
                 store_graph_options.update({f"{name}_{active_tab}":['']*8})
-                store_graph_options[f"{name}_{active_tab}"][4] = False #by default, no markers
+                if active_tab == "stelum":
+                    store_graph_options[f"{name}_{active_tab}"][4] = False #by default, no markers
                 #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+                elif active_tab == "pulse":
+                    store_graph_options[f"{name}_{active_tab}"][4] = True #markers are enabled automatically on PULSE, generally we want them
 
         parameters = [linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color]
 
@@ -1235,7 +1235,7 @@ layout = html.Div(
                                         dbc.Input(id="graph-width", placeholder="linewidth", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-style", placeholder="linestyle", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-label", placeholder="label", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(type="color", id="graph-color", value="#ff0000",style={"height":"15%","width":"80%"}),
+                                        dbc.Input(type="color", id="graph-color", value="#ff0000",style={"height":"15%","width":"80%"}, debounce=True),
                                     ]
                                 ),
                                 html.Div(
@@ -1332,7 +1332,7 @@ layout = html.Div(
                                         dbc.Input(id="line-width", placeholder="linewidth", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="line-style", placeholder="linestyle", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="line-label", placeholder="line label", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(type="color", id="line-color", value="#ff0000",style={"height":"15%","width":"80%"}),
+                                        dbc.Input(type="color", id="line-color", value="#ff0000",style={"height":"15%","width":"80%"}, debounce=True),
                                     ]
                                 ),
                                 html.Div(
