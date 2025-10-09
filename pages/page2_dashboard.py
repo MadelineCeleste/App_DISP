@@ -207,10 +207,11 @@ def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reve
     else:
         y_range = list(map(lambda x: np.round(x,2), y_range))
 
-    label_container = [html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
-                    children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
+    label_container = [
+        # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
+    #                 children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
             html.Div(
-                style={"height": "100%", "width": "80%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
+                style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
                 children=[
                     html.Div(
                         style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
@@ -224,10 +225,11 @@ def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reve
                 ]
             )]
 
-    range_container = [html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
-        children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
+    range_container = [
+        # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
+        # children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
         html.Div(
-            style={"height": "100%", "width": "80%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
+            style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
             children=[
                 html.Div(
                     style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
@@ -1098,10 +1100,10 @@ layout = html.Div(
                             id="axes-range-container",
                             style={"height": "20%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "center","marginBottom":"2vh","marginTop":"2vh","marginBottom":"2vh"},
                             children=[
-                                html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
-                                        children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
+                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
+                                #         children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
                                 html.Div(
-                                    style={"height": "100%", "width": "80%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
+                                    style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
                                     children=[
                                         html.Div(
                                             style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
@@ -1151,10 +1153,10 @@ layout = html.Div(
                             id="axes-label-container",
                             style={"height": "20%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "center","marginTop":"2vh","marginBottom":"1vh"},
                             children=[
-                                html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
-                                        children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
+                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
+                                #         children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
                                 html.Div(
-                                    style={"height": "100%", "width": "80%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
+                                    style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
                                     children=[
                                         html.Div(
                                             style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
