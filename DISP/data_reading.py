@@ -51,7 +51,7 @@ def gbuilder_parsing(path, model_name):
                     data[line[3]] = [round(step*(i+1),5) for i in range(free[line[3]]["res"])]
                     names = [f"{model_name}-{line[3]}_{num}" for num in data[line[3]]]
                 else:
-                    try: 
+                    try:
                         data[line[3]] = [float(line[4])]*free[key]["res"] #yes it's overkill to stock it all
                         #but better safe than sorry :)
                     except:

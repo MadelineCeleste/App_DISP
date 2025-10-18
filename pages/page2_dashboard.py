@@ -84,12 +84,12 @@ def store_file_data(store_datatable_data):
 
     datatable = copy.deepcopy(store_datatable_data) #this is ABSOLUTELY NECESSARY
     #but you know the fun thing ? I HAVE NO CLUE WHY
-    #otherwise it triggers a callback loop between page1 and 2 on display edit, and I'm way too tired to understand why imma be honest
+    #otherwise it triggers a callback loop between page1 and 2 on store-displayed edit, and I'm way too tired to understand why imma be honest
     #that's an #onlyDashthings if I've ever seen one holy smokes
 
     dict_structure = {key:[] for key in (name_options + stelum_dropdown_options + pulse_dropdown_options)}
 
-    try: #so, dash convert numpy arrays to list when they are parsed in to a dcc.Store
+    try:#so, dash convert numpy arrays to list when they are parsed in to a dcc.Store
         #because it serializes in JSON, so, yeah that's happening...
         display = np.array(datatable["table_data"]["display"])
 
@@ -111,7 +111,7 @@ def store_file_data(store_datatable_data):
             for key in stelum_keys:
                 dict_structure[key].append(data_dict["stelum"][key])
 
-            pulse_data = {key:[] for key in pulse_dropdown_options} 
+            pulse_data = {key:[] for key in pulse_dropdown_options}
             #so, I should just change how the data_parsing work, but I ain't gonna lie, I don't have this type of time right now
             #This will do, even though it hurts me in some harsh type of ways
             for key in pulse_keys:
@@ -125,7 +125,7 @@ def store_file_data(store_datatable_data):
 
         dropdown_children = [dcc.Dropdown(id="dropdown-graph", options=[{"label": name, 'value': name} for name in names], style={"height": "75%", "width": "80%"},value=names[0],clearable=False,persistence=True,persistence_type="session")]
 
-        return(copy.deepcopy(dict_structure), dropdown_children)
+        return(copy.deepcopy(dict_structure), dropdown_children) #copy.deepcopy might be unecessary there
 
     except Exception as e: ##just for me during debugging
         import traceback
@@ -219,7 +219,7 @@ def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reve
                             html.Span("x_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
                             dbc.Input(id="x-label", placeholder="X(He)_{core}", value=x_label, style={"height": "100%", "width": "35%", "marginRight": "5%"}),
                             html.Span("y_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                            dbc.Input(id="y-label", placeholder="latex on save graph", value=y_label, style={"height": "100%", "width": "35%", "marginRight": "5%"})
+                            dbc.Input(id="y-label", placeholder="latex on save graph works", value=y_label, style={"height": "100%", "width": "35%", "marginRight": "5%"})
                         ]
                     )
                 ]
@@ -371,8 +371,9 @@ def update_children_left_footer(linewidth, linestyle, model_label, color, marker
     State("store-active-tab", "data"),
 )
 def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
-    sub_store_graph_options = store_graph_options[f"{name}_{store_active_tab['active_tab']}"]
-    left_footer_children = update_children_left_footer(*sub_store_graph_options, name, store_active_tab["active_tab"])
+    self_options = store_graph_options[f"{name}_{store_active_tab['active_tab']}"]
+    common_options = store_graph_options[f"{name}_common"]
+    left_footer_children = update_children_left_footer(*common_options, *self_options, name, store_active_tab["active_tab"])
     
     #here you might say "hey wait, why's that guy building the WHOLE left footer children ?"
     #well, it's because otherwise the dbc.Input menu flickers du to the not amazing way Reacts handle those components
@@ -395,10 +396,11 @@ def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
     State("line-color","value"),
     State("dropdown-x","value"),
     State("dropdown-y","value"),
-    State("store-line-data","data")
+    State("store-line-data","data"),
+    State("store-datatable-data","data")
 )
-def update_line_information(click_add, click_remove, line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y, store_line_data):
-    
+def update_line_information(click_add, click_remove, line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y, store_line_data, store_datatable_data):
+
     if store_line_data is None:
         store_line_data = {"line_value":[],"line_limits":[],"line_direction":[],"line_style":[], "line_width":[], "line_label":[],"line_color":[], "line_number":0,"line_key":[],"line_dropdown":[]}
 
@@ -427,7 +429,14 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
             if (line_value is None) or (line_value == ""):
                 line_value = 0
             else:
-                line_value = float(line_value)
+                try:
+                    line_value = float(line_value)
+                except:
+                    string_value = line_value.split(":")
+                    names = np.array(store_datatable_data["names"])
+                    index = np.where(names == string_value[0])[0][0]
+                    line_value = float(store_datatable_data["table_data"][string_value[1]][index])
+
             if (line_style is None) or (line_style == ""):
                 line_style = "dash"
             if (line_color is None) or (line_color == ""):
@@ -507,7 +516,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
 
     n_names = len(store_displayed["names"])
     active_tab = store_active_tab["active_tab"]
-    
+
     if n_names > 0:
 
         names = store_displayed["names"]
@@ -527,7 +536,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
             #so I have to painfully suffer through lists of lists of lists
 
         parameters = [x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label]
-        
+
         for i, parameter in enumerate(parameters):
             if (parameter is not None) and (parameter != ""):
                 store_graph_options[f'{value_x}_{value_y}'][i] = parameter
@@ -540,13 +549,13 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
             x_values.append(store_displayed[value_x][i])
             y_values.append(store_displayed[value_y][i])
 
-        store_graph_options[f'{value_x}_{value_y}'] = formatting_graph_options(store_graph_options[f'{value_x}_{value_y}'], x_values, y_values, value_x, value_y, active_tab)
+        store_graph_options[f'{value_x}_{value_y}'] = formatting_graph_options(store_graph_options[f'{value_x}_{value_y}'], x_values, y_values, value_x, value_y, active_tab, modes_displayed)
 
         #This is deactivated for now but I'm terrified of a potential MEGA overhead
         #if someone leaves the apply open and does like 500 different combination of graphs, that thing is going to get real slow real quick...
         #And I don't really want to put a "cleanup" button in there do I ?
         #I guess it comes down to design choices all in all
-        
+
         # keys = list(store_graph_options.keys())
 
         # for key in keys: #lil cleanups so that we don't get too much overhead if someone leave the program open for god knows how long
@@ -559,37 +568,49 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
         #         if name not in names:
         #             del store_graph_options[key]
 
-        for name in names: 
+        for name in names:
             #so, I initialize all the name in display, but of course, the parameters are only choosen for one name at a time
             #otherwise this is complete chaos obviously (it already is, do not look the callbacks graph in debug mode...)
 
             if not store_graph_options.get(f"{name}_{active_tab}"): #first time the specific trio name_key1_key2 is used
+                #this actually only store markers
 
-                store_graph_options.update({f"{name}_{active_tab}":['']*8})
+                store_graph_options.update({f"{name}_{active_tab}":['']*4})
                 if active_tab == "stelum":
-                    store_graph_options[f"{name}_{active_tab}"][4] = False #by default, no markers
-                #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+                    store_graph_options[f"{name}_{active_tab}"][0] = False #by default, no markers
+                #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
                 elif active_tab == "pulse":
-                    store_graph_options[f"{name}_{active_tab}"][4] = True #markers are enabled automatically on PULSE, generally we want them
+                    store_graph_options[f"{name}_{active_tab}"][0] = True #markers are enabled automatically on PULSE, generally we want them
 
-        parameters = [linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color]
+            if not store_graph_options.get(f"{name}_common"): #this update the linestyle
+                #called common in case the distribution changes
+                store_graph_options.update({f"{name}_common":['']*4})
+                #0:linewidth, 1:linestyle, 2:model_label, 3:color
 
-        for i, parameter in enumerate(parameters):
+        tab_params = [linewidth, linestyle, model_label, color]
+        common_params = [markers, marker_size, marker_style,  marker_color]
 
-            if (parameter is not None) and (parameter != ""):
-                store_graph_options[f"{dropdown_model_name}_{active_tab}"][i] = parameter
+        for i, (common_param, tab_param) in enumerate(zip(common_params, tab_params)): #only works cause same size on both tab and commmon params, careful
+            #otherwise, two iterations will be needed
+
+            if (common_param is not None) and (common_param != ""):
+                store_graph_options[f"{dropdown_model_name}_{active_tab}"][i] = common_param
             else:
                 store_graph_options[f"{dropdown_model_name}_{active_tab}"][i] = ''
 
-        #just some light conversions so that we don't get errors update the graphs on the sizes
-        if store_graph_options[f"{dropdown_model_name}_{active_tab}"][0] != '':
-            store_graph_options[f"{dropdown_model_name}_{active_tab}"][0] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][0])
+            if (tab_param is not None) and (tab_param != ""):
+                store_graph_options[f"{dropdown_model_name}_common"][i] = tab_param
+            else:
+                store_graph_options[f"{dropdown_model_name}_common"][i] = ''
 
-        if store_graph_options[f"{dropdown_model_name}_{active_tab}"][5] != '':
-            store_graph_options[f"{dropdown_model_name}_{active_tab}"][5] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][5])
+        #just some light conversions so that we don't get errors update the graphs on the sizes (linesize and markersize)
+        if store_graph_options[f"{dropdown_model_name}_common"][0] != '':
+            store_graph_options[f"{dropdown_model_name}_common"][0] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][0])
+
+        if store_graph_options[f"{dropdown_model_name}_{active_tab}"][1] != '':
+            store_graph_options[f"{dropdown_model_name}_{active_tab}"][1] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][1])
 
         #### Line parsing ####
-
         if active_tab == "stelum":
 
             figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data)
@@ -627,7 +648,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
                 modes_colors = modes_colors.split(";")
             
             #case where n_names doesn't matter, it takes color of the graph anyways
-            #because... consistency ? 
+            #because... consistency ?
 
             if n_names == 1:
                 "In elif"
@@ -648,7 +669,7 @@ def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed
 
     raise(dash.exceptions.PreventUpdate)
 
-def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_x, value_y, tab):
+def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_x, value_y, tab, modes_displayed):
 
     x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label = sub_store_graph_options
 
@@ -708,7 +729,7 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
     if tab == "pulse": #needed because not the same structure for pulse and stelum values
 
         if (x_range == "") or (y_range == ""): #avoid double iterations if both are ""
-            
+
             min_x, max_x = np.min(x_values[0][0]), np.max(x_values[0][0])
             min_y, max_y = np.min(y_values[0][0]), np.max(y_values[0][0])
             #I mean come on, I can get away with NOT looping on all "L" surely
@@ -758,12 +779,12 @@ def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_
         if y_scale == "log":
             sub_store_graph_options[1] = np.log10(np.array(sub_store_graph_options[1]))
 
-
     return(sub_store_graph_options)
 
 def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data):
 
     sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
+    #this contain the general graph limits (x_labels, x_lims, and so forth)
 
     fig = go.Figure()
 
@@ -773,48 +794,53 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
 
     for i, name in enumerate(names):
 
-        name_graph_options = store_graph_options[f"{name}_stelum"] #obligatory stelum, it's the func for it after all
-        #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+        self_options = store_graph_options[f"{name}_stelum"] #obligatory stelum, it's the func for it after all
+        #0:linewidth, 1:linestyle, 2:model_label, 3:color
+        common_options = store_graph_options[f"{name}_common"]
+        #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
 
         #it's time to set all the defaults yiho
-        params = [2,"solid",name,colors[i],"void",4,"circle",colors[i]]
+        common_params = [2,"solid",name,colors[i]]
+        self_params = ["void",4,"circle",colors[i]]
 
-        for j,param in enumerate(name_graph_options):
-            if param != "":
-                params[j] = name_graph_options[j]
+        for j,(sparam,cparam) in enumerate(zip(self_options, common_options)):
+            if sparam != "":
+                self_params[j] = self_options[j]
+            if cparam != "":
+                common_params[j] = common_options[j]
 
-        if (name_graph_options[7] == "") and (name_graph_options[3] != ""):
-            #just a little something to ensure markers are of the same color of the graph if no color is specified :)
-            params[7] = params[3]
+        if (common_options[3] != "") and (self_options[3] == ""):
+            #just to ensure markers are of the same color of the line if no color is specified :)
+            self_params[3] = common_params[3]
 
-        if name_graph_options[4] == False: #no markers
+        if self_options[0] == False: #no markers
 
             fig.add_trace(go.Scatter(
             x=x_values[i],
             y=y_values[i],
             mode="lines",
-            name=params[2],
+            name=common_params[2],
             #ok but what are those parameters names ?
             #who calls the linestyle "dash" ????
-            line=dict(color=params[3],
-                      width=params[0],
-                      dash=params[1])))
+            line=dict(color=common_params[3],
+                      width=common_params[0],
+                      dash=common_params[1])))
             
         else: #markers
             fig.add_trace(go.Scatter(
             x=x_values[i],
             y=y_values[i],
             mode="lines+markers",
-            name=params[2],
+            name=common_params[2],
             #ok but what are those parameters names ?
             #who calls the linestyle "dash" ????
-            line=dict(color=params[3],
-                      width=params[0],
-                      dash=params[1]),
+            line=dict(color=common_params[3],
+                      width=common_params[0],
+                      dash=common_params[1]),
             marker=dict(
-                symbol=params[6],
-                size=params[5],
-                color = params[7]
+                size=self_params[1],
+                symbol=self_params[2],
+                color = self_params[3]
             )))
 
     fig.update_layout(
@@ -853,8 +879,8 @@ def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x
         )
 
     if store_line_data is not None:
+        #lines additions, by default dashed
 
-        #lines additions
         line_dropdown = np.array(store_line_data["line_dropdown"])
         x_location = np.where(line_dropdown == value_x)[0]
         y_location = np.where(line_dropdown == value_y)[0]
@@ -907,7 +933,7 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
 
     sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
 
-    #I actually tried to make it MORE disgusting but really couldn't 
+    #even if I tried to make it MORE disgusting I couldn't
     if (value_x == "Reduced_Pspacing") or (value_x == "Pspacing") and (value_y != "Reduced_Pspacing") or (value_y != "Pspacing"):
         for i in range(len(y_values)):
             for j in range(len(y_values[i])):
@@ -916,7 +942,6 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
         for i in range(len(x_values)):
             for j in range(len(x_values[i])):
                 x_values[i][j] = x_values[i][j][:-1]
-
 
     fig = go.Figure()
 
@@ -934,48 +959,53 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
 
         for i, name in enumerate(names):
 
-            name_graph_options = store_graph_options[f"{name}_pulse"] #obligatory stelum, it's the func for it after all
-            #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+            self_options = store_graph_options[f"{name}_pulse"] #obligatory pulse, it's the func for it after all
+            #0:linewidth, 1:linestyle, 2:model_label, 3:color
+            common_options = store_graph_options[f"{name}_common"]
+            #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
 
             #it's time to set all the defaults yiho
-            params = [2,"solid",name,colors[i],"void",4,"circle",colors[i]]#we keep the colors of the graphs
+            common_params = [2,"solid",name,colors[i]]
+            self_params = ["void",4,"circle",colors[i]]
 
-            for j,param in enumerate(name_graph_options):
-                if param != "":
-                    params[j] = name_graph_options[j]
+            for j, (sparam,cparam) in enumerate(zip(self_options, common_options)):
+                if sparam != "":
+                    self_params[j] = self_options[j]
+                if cparam != "":
+                    common_params[j] = common_options[j]
 
-            if (name_graph_options[7] == "") and (name_graph_options[3] != ""):
-                #just a little something to ensure markers are of the same color of the graph if no color is specified :)
-                params[7] = params[3]
+            if (common_options[3] != "") and (self_options[3] == ""):
+                #just to ensure markers are of the same color of the line if no color is specified :)
+                self_params[3] = common_params[3]
 
-            if name_graph_options[4] == False: #no markers
+            if self_options[0] == False: #no markers
 
                 fig.add_trace(go.Scatter(
                 x=x_values[i][mode], #for pulse, it's [name_i][l] always
                 y=y_values[i][mode],
                 mode="lines",
-                name=params[2],
+                name=common_params[2],
                 #ok but what are those parameters names ?
                 #who calls the linestyle "dash" ????
-                line=dict(color=params[3],
-                        width=params[0],    
-                        dash=params[1])))
+                line=dict(color=common_params[3],
+                        width=common_params[0],
+                        dash=common_params[1])))
                 
             else: #markers
                 fig.add_trace(go.Scatter(
                 x=x_values[i][mode],
                 y=y_values[i][mode],
                 mode="lines+markers",
-                name=params[2],
+                name=common_params[2],
                 #ok but what are those parameters names ?
                 #who calls the linestyle "dash" ????
-                line=dict(color=params[3],
-                        width=params[0],
-                        dash=params[1]),
+                line=dict(color=common_params[3],
+                        width=common_params[0],
+                        dash=common_params[1]),
                 marker=dict(
-                    symbol=params[6],
-                    size=params[5],
-                    color = params[7]
+                    size=self_params[1],
+                    symbol=self_params[2],
+                    color = self_params[3]
                 )))
 
     if n_names == 1: #this time, we iterate on modes
@@ -988,48 +1018,53 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
 
         for i, mode in enumerate(modes):
 
-            name_graph_options = store_graph_options[f"{name}_pulse"] #obligatory stelum, it's the func for it after all
-            #0:linewidth, 1:linestyle, 2:model_label, 3:color, 4:markers, 5:marker_size, 6:marker_style, 7:marker_color
+            self_options = store_graph_options[f"{name}_pulse"] #obligatory pulse, it's the func for it after all
+            #0:linewidth, 1:linestyle, 2:model_label, 3:color
+            common_options = store_graph_options[f"{name}_common"]
+            #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
 
             #it's time to set all the defaults yiho
-            params = [2,"solid",name,colors[i],"void",4,"circle",colors[i]] 
+            common_params = [2,"solid",name,colors[i]]
+            self_params = ["void",4,"circle",colors[i]]
 
-            for j,param in enumerate(name_graph_options):
-                if param != "":
-                    params[j] = name_graph_options[j]
+            for j,(sparam,cparam) in enumerate(zip(self_options, common_options)):
+                if sparam != "":
+                    self_params[j] = self_options[j]
+                if cparam != "":
+                    common_params[j] = common_options[j]
 
-            if (name_graph_options[7] == "") and (name_graph_options[3] != ""):
-                #just a little something to ensure markers are of the same color of the graph if no color is specified :)
-                params[7] = params[3]
+            if (common_options[3] != "") and (self_options[3] == ""):
+                #just to ensure markers are of the same color of the line if no color is specified :)
+                self_params[3] = common_params[3]
 
-            if name_graph_options[4] == False: #no markers
+            if self_options[0] == False: #no markers
 
                 fig.add_trace(go.Scatter(
                 x=x_values[0][mode], #for pulse, it's [name_i][l] always
                 y=y_values[0][mode],
                 mode="lines",
-                name=params[2],
+                name=common_params[2],
                 #ok but what are those parameters names ?
                 #who calls the linestyle "dash" ????
-                line=dict(color=params[3],
-                        width=params[0],
-                        dash=params[1])))
+                line=dict(color=common_params[3],
+                        width=common_params[0],
+                        dash=common_params[1])))
                 
             else: #markers
                 fig.add_trace(go.Scatter(
                 x=x_values[0][mode],
                 y=y_values[0][mode],
                 mode="lines+markers",
-                name=params[2],
+                name=common_params[2],
                 #ok but what are those parameters names ?
                 #who calls the linestyle "dash" ????
-                line=dict(color=params[3],
-                        width=params[0],
-                        dash=params[1]),
+                line=dict(color=common_params[3],
+                        width=common_params[0],
+                        dash=common_params[1]),
                 marker=dict(
-                    symbol=params[6],
-                    size=params[5],
-                    color = params[7]
+                    size=self_params[1],
+                    symbol=self_params[2],
+                    color = self_params[3]
                 )))
 
     fig.update_layout(
@@ -1056,6 +1091,55 @@ def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x,
             range=sub_store_graph_options[1]
         )
         )
+
+    if store_line_data is not None:
+        #lines additions, by default dashed
+
+        line_dropdown = np.array(store_line_data["line_dropdown"])
+        x_location = np.where(line_dropdown == value_x)[0]
+        y_location = np.where(line_dropdown == value_y)[0]
+
+        yaxis_range = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
+        xaxis_range = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
+
+        if sub_store_graph_options[3] == "log":
+            yaxis_range = [10**yaxis for yaxis in yaxis_range]
+        if sub_store_graph_options[2] == "log":
+            xaxis_range = [10**xaxis for xaxis in xaxis_range]
+
+        for index in x_location:
+            if store_line_data["line_direction"][index] == "x":
+                fig.add_trace(
+                    go.Scatter(
+                        x=[store_line_data["line_value"][index]] * 2,
+                        y=[yaxis_range[0], yaxis_range[1]],
+                        mode="lines",
+                        line=dict(
+                            width=store_line_data["line_width"][index],
+                            dash=store_line_data["line_style"][index],
+                            color=store_line_data["line_color"][index],
+                        ),
+                        name=store_line_data["line_label"][index],
+                        showlegend=True
+                    )
+                    )
+
+        for index in y_location:
+            if store_line_data["line_direction"][index] == "y":
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[xaxis_range[0], xaxis_range[1]],
+                            y=[store_line_data["line_value"][index]] * 2,
+                            mode="lines",
+                            line=dict(
+                                width=store_line_data["line_width"][index],
+                                dash=store_line_data["line_style"][index],
+                                color=store_line_data["line_color"][index],
+                            ),
+                            name=store_line_data["line_label"][index],
+                            showlegend=True
+                        )
+                        )
 
     return(fig)
 
@@ -1147,7 +1231,7 @@ layout = html.Div(
                             id="axes-range-container",
                             style={"height": "20%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "center","marginBottom":"2vh","marginTop":"2vh","marginBottom":"2vh"},
                             children=[
-                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
+                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"},
                                 #         children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
                                 html.Div(
                                     style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
