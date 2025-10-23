@@ -7,7 +7,7 @@ import plotly.express as px
 import dash_mantine_components as dmc
 import numpy as np
 from DISP import data_reading, custom_calc
-from DISP.global_vars import data, graph_options
+from DISP.global_vars import data, graph_options, line_options
 import time
 import copy
 import plotly.graph_objects as go
@@ -131,105 +131,6 @@ def store_file_data(store_datatable_data):
     return(dropdown_options, dash.no_update)
 
 @callback(
-    Output("store-line-data","data"),
-    Input("btn-add-line","n_clicks"),
-    Input("btn-remove-line","n_clicks"),
-    State("line-value","value"),
-    State("line-limits","value"),
-    State("line-direction","value"),
-    State("line-width","value"),
-    State("line-style","value"),
-    State("line-label","value"),
-    State("line-color","value"),
-    State("dropdown-x","value"),
-    State("dropdown-y","value"),
-    State("store-line-data","data"),
-    State("store-datatable-data","data")
-)
-def update_line_information(click_add, click_remove, line_value, line_limits, line_direction, line_width, line_style, line_label, line_color, value_x, value_y, store_line_data, store_datatable_data):
-
-    if store_line_data is None:
-        store_line_data = {"line_value":[],"line_limits":[],"line_direction":[],"line_style":[], "line_width":[], "line_label":[],"line_color":[], "line_number":0,"line_key":[],"line_dropdown":[]}
-
-    if ctx.triggered_id == "btn-add-line":
-
-        if (line_label is None) or (line_label == ""):
-                #so, this is not optimal because it's shared between all graphs
-                #but I mean the line_label should never be empty anyways, that's just bad practise to not label those by default
-                #hmm, I'd like to have a way to just change the lines even after they're added, but I'm not sure how to do all that
-                #I'll think about it later, first, do the easy things...
-                line_label = f"line_{store_line_data["line_number"]}"
-                store_line_data["line_number"] += 1
-
-        if line_direction == "x":
-            line_key = f"{line_direction}_{value_x}_{line_label}"
-            store_line_data["line_dropdown"].append(value_x)
-        else:
-            line_key = f"{line_direction}_{value_y}_{line_label}"
-            store_line_data["line_dropdown"].append(value_y)
-
-        line_keys = np.array(store_line_data["line_key"])
-        key_index = np.where(line_keys == line_key)[0]
-
-        if len(key_index) == 0:
-
-            if (line_value is None) or (line_value == ""):
-                line_value = 0
-            else:
-                try:
-                    line_value = float(line_value)
-                except:
-                    string_value = line_value.split(":")
-                    names = np.array(store_datatable_data["names"])
-                    index = np.where(names == string_value[0])[0][0]
-                    line_value = float(store_datatable_data["table_data"][string_value[1]][index])
-
-            if (line_style is None) or (line_style == ""):
-                line_style = "dash"
-            if (line_color is None) or (line_color == ""):
-                line_color = "red"
-            if (line_width is None) or (line_width == ""):
-                line_width = 2
-            else:
-                line_width = float(line_width)
-
-            if (line_limits is not None) and line_limits != "":
-                line_limits = list(map(float, line_limits.split(",")))
-            else:
-                line_limits = "auto"
-
-            store_line_data["line_value"].append(line_value)
-            store_line_data["line_limits"].append(line_limits)
-            store_line_data["line_direction"].append(line_direction)
-            store_line_data["line_style"].append(line_style)
-            store_line_data["line_width"].append(line_width)
-            store_line_data["line_color"].append(line_color)
-            store_line_data["line_label"].append(line_label)
-            store_line_data["line_key"].append(line_key)
-
-        else:
-            raise dash.exceptions.PreventUpdate
-
-    if ctx.triggered_id == "btn-remove-line":
-
-        if line_direction == "x":
-            line_key = f"{line_direction}_{value_x}_{line_label}"
-        else:
-            line_key = f"{line_direction}_{value_y}_{line_label}"
-
-        line_keys = np.array(store_line_data["line_key"])
-        key_index = np.where(line_keys == line_key)[0]
-
-        if len(key_index) == 1:#there should only be ONE of each keys anyways, otherwise it's weird
-            for key in list(store_line_data.keys()):
-                if key != "line_number":#this feels stupid; maybe line_number should be a local variable in the file, not in the dcc.Store ?
-                    del(store_line_data[key][key_index[0]])
-        else:
-            raise dash.exceptions.PreventUpdate
-
-    return(store_line_data)
-
-@callback(
     Output("x-range","value"),
     Output("y-range","value"),
     Output('x-scale',"value"),
@@ -295,7 +196,7 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
     global graph_options
 
     active_tab = store_active_tab["active_tab"]
-    common_keys = ["line_width","line_style","line_label","line_color","marker_bind"]
+    common_keys = ["graph_width","graph_style","graph_label","graph_color","marker_bind"]
     self_keys = ["marker_enabled","marker_size","marker_style","marker_color"]
     mode_keys = ["mode_displayed","mode_color"]
     count_color = -1
@@ -316,14 +217,14 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
 
             if graph_options.get(name):
                 if graph_options[name].get("common"):
-                    line_width, line_style, line_label, line_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
+                    graph_width, graph_style, graph_label, graph_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
                 if graph_options[name].get(active_tab):
                     marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
                 else: #this is in case we change tabs, we need to init the dict according to it
                     graph_options[name][active_tab] = {"marker_enabled":False,
                                                     "marker_size":4,
                                                     "marker_style":"circle",
-                                                    "marker_color":line_color}
+                                                    "marker_color":graph_color}
 
                     if active_tab == "pulse":
                         graph_options[name][active_tab]["marker_enabled"] = True
@@ -336,17 +237,17 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
             else:
                 graph_options[name] = {"common":{}, active_tab:{}, "mode":{}}
                 color = base_colors["colors"][count_color%len(base_colors["colors"])]
-                graph_options[name]["common"] = {"line_width":2,
-                                                "line_style":"solid",
-                                                "line_label":name,
-                                                "line_color":color,
+                graph_options[name]["common"] = {"graph_width":2,
+                                                "graph_style":"solid",
+                                                "graph_label":name,
+                                                "graph_color":color,
                                                 "marker_bind":True}
-                line_width, line_style, line_label, line_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
+                graph_width, graph_style, graph_label, graph_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
                 
                 graph_options[name][active_tab] = {"marker_enabled":False,
                                                 "marker_size":4,
                                                 "marker_style":"circle",
-                                                "marker_color":graph_options[name]["common"]["line_color"]}
+                                                "marker_color":graph_options[name]["common"]["graph_color"]}
                 marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
 
                 if graph_options[name]["mode"]:
@@ -361,8 +262,8 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
                     graph_options[name][active_tab]["marker_size"] = 8
 
             if marker_bind == True:
-                graph_options[name][active_tab]["marker_color"] = graph_options[name]["common"]["line_color"]
-                marker_color = line_color
+                graph_options[name][active_tab]["marker_color"] = graph_options[name]["common"]["graph_color"]
+                marker_color = graph_color
 
             graph_options["active_tab"] = active_tab
         else:
@@ -375,7 +276,7 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
                         graph_options[name][tab] = {"marker_enabled":False,
                                                             "marker_size":4,
                                                             "marker_style":"circle",
-                                                            "marker_color":graph_options[name]["common"]["line_color"]}
+                                                            "marker_color":graph_options[name]["common"]["graph_color"]}
                         if tab == "pulse":
                             graph_options[name][tab]["marker_enabled"] = True
                             graph_options[name][tab]["marker_size"] = 8
@@ -383,17 +284,17 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
             else: #init if nothing exists
                 graph_options[name] = {"common":{}, "stelum":{}, "pulse":{}, "mode":{}}
                 color = base_colors["colors"][count_color%len(base_colors["colors"])]
-                graph_options[name]["common"] = {"line_width":2,
-                                                "line_style":"solid",
-                                                "line_label":name,
-                                                "line_color":color,
+                graph_options[name]["common"] = {"graph_width":2,
+                                                "graph_style":"solid",
+                                                "graph_label":name,
+                                                "graph_color":color,
                                                 "marker_bind":True}
 
                 for tab in ["stelum","pulse"]:
                     graph_options[name][tab] = {"marker_enabled":False,
                                                     "marker_size":4,
                                                     "marker_style":"circle",
-                                                    "marker_color":graph_options[name]["common"]["line_color"]}
+                                                    "marker_color":graph_options[name]["common"]["graph_color"]}
                     if tab == "pulse":
                         graph_options[name][tab]["marker_enabled"] = True
                         graph_options[name][tab]["marker_size"] = 8
@@ -406,7 +307,7 @@ def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_
     if graph_options.get("name"):
         del graph_options["name"]
 
-    return(line_width, line_style, line_label, line_color, marker_bind, marker_enabled, marker_size, marker_style, marker_color, mode_displayed, mode_colors)
+    return(graph_width, graph_style, graph_label, graph_color, marker_bind, marker_enabled, marker_size, marker_style, marker_color, mode_displayed, mode_colors)
 
 def dropdown_creation(set_id, options, value):
 
@@ -486,9 +387,9 @@ def graph_update():
     global data, graph_options
 
 
-def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_value, dropdown_y_value):
+def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_value):
 
-    global graph_options, data
+    global graph_options, line_options, data
 
     n_models = len(dropdown_graph_options)
 
@@ -498,28 +399,33 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
     #here we don't really have a choice, gotta use ifs to disjoint cases
 
     fig = go.Figure()
+    range_limits = {}
 
-    def draw_func(data_x, data_y, *, line_label, line_color, line_width, line_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
+    x_opt = graph_options[f"{dropdown_x_value}_x"]
+    y_opt = graph_options[f"{dropdown_y_value}_y"]
+
+
+    def draw_func(data_x, data_y, *, graph_label, graph_color, graph_width, graph_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
 
         if kwargs.get("mode_color"):
-            line_color = kwargs["mode_color"]
+            graph_color = kwargs["mode_color"]
             marker_color = kwargs["mode_color"]
 
         if kwargs.get("mode_displayed"):
-            line_label = f"l{kwargs["mode_displayed"]} {line_label}"
+            graph_label = f"l{kwargs["mode_displayed"]} {graph_label}"
 
         if marker_bind == True:
-            marker_color = line_color
+            marker_color = graph_color
 
         trace_args = dict(
                 x = data_x,
                 y = data_y,
                 mode = "lines",
-                name = line_label,
+                name = graph_label,
                 line = dict(
-                    color = line_color,
-                    width = line_width,
-                    dash = line_style
+                    color = graph_color,
+                    width = graph_width,
+                    dash = graph_style
                 )
             )
 
@@ -533,6 +439,24 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
             )
 
         return(trace_args)
+    
+    def fetch_limits(range_limits, data_x, data_y):
+
+        if range_limits == {}:
+            range_limits = {"x_min":np.min(data_x), "y_min":np.min(data_y),
+                            "x_max":np.max(data_x), "y_max":np.max(data_y)}
+        else:
+            neo_limits = {"x_min":np.min(data_x), "y_min":np.min(data_y),
+                            "x_max":np.max(data_x), "y_max":np.max(data_y)}
+            
+            for limit in ["x_min","y_min"]:
+                if range_limits[limit] > neo_limits[limit]:
+                    range_limits[limit] = neo_limits[limit]
+            for limit in ["x_max","y_max"]:
+                if range_limits[limit] < neo_limits[limit]:
+                    range_limits[limit] = neo_limits[limit]
+
+        return(range_limits)
 
     if active_tab == "stelum":
         #for stelum graph, it's simple, just parse in all the arguments really
@@ -546,6 +470,10 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
 
             data_x = data[name][active_tab][f"{dropdown_x_value}"]
             data_y = data[name][active_tab][f"{dropdown_y_value}"]
+
+            range_limits = fetch_limits(range_limits, data_x, data_y)
+            x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+            y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
             trace_args = draw_func(data_x, data_y, **common_opt, **self_opt)
             fig.add_trace(go.Scatter(**trace_args))
@@ -567,6 +495,9 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
 
                 data_x = data[name][active_tab][mode][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode][f"{dropdown_y_value}"]
+                range_limits = fetch_limits(range_limits, data_x, data_y)
+                x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+                y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
                 trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, **{"mode_displayed":mode_displayed[i], "mode_color":mode_color[i]})
                 fig.add_trace(go.Scatter(**trace_args))
@@ -586,12 +517,12 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
 
                 data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
+                range_limits = fetch_limits(range_limits, data_x, data_y)
+                x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+                y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
                 trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, mode_displayed=mode_displayed)
                 fig.add_trace(go.Scatter(**trace_args))
-
-    x_opt = graph_options[f"{dropdown_x_value}_x"]
-    y_opt = graph_options[f"{dropdown_y_value}_y"]
 
     def build_axis(*, label, ranges, scale, reversed_axis):
 
@@ -606,20 +537,18 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
             tickwidth = 2,
         )
 
-        if ranges == None or ranges == "":
-            if reversed_axis == True:
-                axis_dict["autorange"] = "reversed"
-            else:
-                axis_dict["autorange"] = True
-        else:
+        try:
             range_list = list(map(float,ranges.split(",")))
-            if reversed_axis == True:
-                range_list = axis_dict["range"][::-1]
-            if scale == "log":
-                range_list = list(map(np.log10,range_list))
+        except:
+            range_list = ranges
 
-            axis_dict["range"] = range_list
-        
+        if reversed_axis == True:
+            range_list = range_list[::-1]
+        if scale == "log":
+            range_list = list(map(np.log10,range_list))
+
+        axis_dict.update({"range":range_list})
+
         return(axis_dict)
 
     fig.update_layout(
@@ -634,6 +563,50 @@ def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_v
         showlegend=True,
         xaxis = build_axis(**x_opt),
         yaxis = build_axis(**y_opt))
+
+    def add_line(fig, line_label, *, line_value, line_limits, line_direction, line_width, line_style, line_color):
+
+        line_args = dict(
+            mode="lines",
+            line=dict(
+                width=line_width,
+                dash = line_style,
+                color=line_color
+            ),
+            name = line_label,
+            showlegend = True
+        )
+
+        line_value = [line_value]*2
+        if line_direction == "x":
+            line_args["x"] = line_value
+            if line_limits == "" or line_limits == None:
+                line_args["y"] = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
+            else:
+                line_args["y"] = list(map(float,line_limits.split(",")))
+            if fig.layout.yaxis.type == "log":
+                line_args["y"] = list(map(lambda x: 10**x, line_args["y"]))
+        else:
+            line_args["y"] = line_value
+            if line_limits == "" or line_limits == None:
+                line_args["x"] = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
+            else:
+                line_args["x"] = list(map(float,line_limits.split(",")))
+            if fig.layout.xaxis.type == "log":
+                line_args["x"] = list(map(lambda x: 10**x, line_args["x"]))
+
+        return(line_args)
+
+    #yes this is lazy :bedge:
+    for line_label in list(line_options[f"{dropdown_x_value}_x"].keys()):
+
+        line_args = add_line(fig, line_label, **line_options[f"{dropdown_x_value}_x"][line_label])
+        fig.add_trace(go.Scatter(**line_args))
+
+    for line_label in list(line_options[f"{dropdown_y_value}_y"].keys()):
+
+        line_args = add_line(fig, line_label, **line_options[f"{dropdown_y_value}_y"][line_label])
+        fig.add_trace(go.Scatter(**line_args))
 
     return(fig)
 
@@ -651,6 +624,112 @@ def matching_colors(store_graph_color, dropdown_graph_value):
         return([dbc.Input(type="color", id="marker-color", value=store_graph_color["color"],style={"height":"100%","width":"80%"}, debounce=True)])
     else:
         return(dash.no_update)
+
+
+def update_line_options(trigger_id, line_label, store_datatable_data, dropdown_x_value, dropdown_y_value, **kwargs):
+
+    #we only go in there if trigger_id is either:
+    #"btn-remove-line" or "btn-add-line"
+    #Do I want a memory imprint for lines too ? Uh oh...
+    #Actually easy ? Only the label never changes, just use that as input !
+
+    global line_options, data
+
+    line_ids = ["line-value","line-limits","line-direction","line-width","line-style","line-color"]
+
+    if not line_options.get(f"{dropdown_x_value}_x"):
+        line_options.update({f"{dropdown_x_value}_x":{}})
+    if not line_options.get(f"{dropdown_y_value}_y"):
+        line_options.update({f"{dropdown_y_value}_y":{}})
+
+    if kwargs["line_direction"] == "x":
+        main_key = f"{dropdown_x_value}_x"
+        opposite_key = f"{dropdown_y_value}_y"
+    else:
+        main_key = f"{dropdown_y_value}_y"
+        opposite_key = f"{dropdown_x_value}_x"
+
+    if line_label == None or line_label == "" or kwargs["line_value"] == None or kwargs["line_value"] == "":
+        pass #not labeled or no value should never be plotted
+            #it's arguable for no labels, but its simpler this way, and a line without label is a bit strange
+            #will see if I keep that in the future
+    else:
+        if trigger_id == "btn-remove-line":
+            #it's either one or the other so, we try both
+            if line_options[main_key].get(line_label):
+                    del line_options[main_key][line_label]
+            elif line_options[opposite_key].get(line_label):
+                del line_options[opposite_key][line_label]
+
+        elif trigger_id == "btn-add-line": #this both triggers on add-line, but also on just changing any line parameter
+            if line_label not in list(line_options[opposite_key]):#I *really* don't want people to have the same label for 2 lines
+                #not only is it bad practise, it's also annoying for me
+                line_options[main_key][line_label] = kwargs
+                try:
+                    line_options[main_key][line_label]["line_value"] = float(line_options[main_key][line_label]["line_value"])
+                except:
+                    line_value = kwargs["line_value"].split(":")
+                    model_name, column_name = line_value
+                    model_index = np.where(np.array(store_datatable_data["names"]) == model_name)[0]
+                    line_options[main_key][line_label]["line_value"] = float(store_datatable_data["table_data"][column_name][model_index])
+
+                line_style = kwargs["line_style"]
+                line_width = kwargs["line_width"]
+
+                if line_style == "" or line_style == None:
+                    line_options[main_key][line_label]["line_style"] = "dash"
+                try: #also covers the None or "" case :)
+                    line_options[main_key][line_label]["line_width"] = float(line_width)
+                except:
+                    line_options[main_key][line_label]["line_width"] = 2
+
+        elif trigger_id in line_ids:#here we update, we don't initialize
+            if line_options[main_key].get(line_label):
+                key = "_".join(trigger_id.split('-'))
+                line_options[main_key][line_label][key] = kwargs[key]
+
+                #setting back defaults if a value is fully erased
+                if trigger_id == "line-style":
+                    if line_options[main_key][line_label]["line_style"] == "" or line_options[main_key][line_label]["line_style"] == None:
+                        line_options[main_key][line_label]["line_style"] = "dash"
+
+                if trigger_id == "line-width":
+                    try:
+                        line_options[main_key][line_label]["line_width"] = float(line_options[main_key][line_label]["line_width"])
+                    except:
+                        line_options[main_key][line_label]["line_width"] = 2
+
+            elif trigger_id == "line-direction" and line_options[opposite_key].get(line_label): #very specific case which need to be taken care of
+                #here, we switch a line from x to y or invert, #careful here, we need to check opposite key, since line-direction is opposite to what we search..
+                line_options[opposite_key][line_label]["line_direction"] = kwargs["line_direction"]
+                line_options[main_key][line_label] = copy.deepcopy(line_options[opposite_key][line_label])
+                del line_options[opposite_key][line_label]
+
+@callback(
+    Output("line-value","value"),
+    Output("line-limits","value"),
+    Output("line-direction","value"),
+    Output("line-width","value"),
+    Output("line-style","value"),
+    Output("line-color","value"),
+    Input("line-label","value"),
+    State("dropdown-x","value"),
+    State("dropdown-y","value")
+)
+def memory_imprint_lines(line_label, dropdown_x_value, dropdown_y_value):
+
+    global line_options
+    #this is why I need singular labeling, otherwise I can't get the context as below!
+
+    try:
+        if line_label in list(line_options[f"{dropdown_x_value}_x"].keys()):
+            return([line_options[f"{dropdown_x_value}_x"][line_label][key] for key in list(line_options[f"{dropdown_x_value}_x"][line_label].keys())])
+        elif line_label in list(line_options[f"{dropdown_y_value}_y"].keys()):
+            return([line_options[f"{dropdown_y_value}_y"][line_label][key] for key in list(line_options[f"{dropdown_y_value}_y"][line_label].keys())])
+        else:
+            return(dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update)
+    except Exception as e:
+        return(dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update)
 
 
 @callback(
@@ -677,26 +756,38 @@ def matching_colors(store_graph_color, dropdown_graph_value):
     Input("displayed-modes","value"),
     Input("modes-color","value"),
 
-    ### If Lines are added or removed ###
-    Input("store-line-data","data"),
+    ### Lines ###
+    Input("btn-add-line","n_clicks"),
+    Input("btn-remove-line","n_clicks"),
+    Input("line-value","value"),
+    Input("line-limits","value"),
+    Input("line-direction","value"),
+    Input("line-width","value"),
+    Input("line-style","value"),
+    Input("line-color","value"),
 
     # Those are necessary "State"
     # Because they are used as Input for memory imprints
     State("store-active-tab","data"),
+    State("store-datatable-data","data"),
     State("dropdown-x","value"),
     State("dropdown-y","value"),
     State("dropdown-graph","value"),
     State("dropdown-graph","options"),
-)
-def update_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, line_width, line_style, line_label, line_color, marker_enabled, marker_size, marker_style, marker_color, marker_bind, mode_displayed, mode_color, store_line_data, store_active_tab, dropdown_x_value, dropdown_y_value, dropdown_graph_value,dropdown_graph_options):
+    State("line-label","value"),
+)#I'm a bit worried about overhead, but so far so good in the actual app
+#If there is overhead, it'll be on the store_datatable_data
+#It might benefit from becoming global, but if someone imports 10k models I don't know what to say
+def update_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, graph_width, graph_style, graph_label, graph_color, marker_enabled, marker_size, marker_style, marker_color, marker_bind, mode_displayed, mode_color, clicks_add, clicks_remove, line_value, line_limits, line_direction, line_width, line_style, line_color, store_active_tab, store_datatable_data, dropdown_x_value, dropdown_y_value, dropdown_graph_value, dropdown_graph_options, line_label):
 
     global data, graph_options
+
     #again here, better to use those than dcc.Store
     #Trust me, I've tried both :)
     #dcc.Store only leads to spaghetti code if not needed as Input trigger
     #also, those global variable are not "None" at init, which is very welcome
 
-    line_width, marker_size = float(line_width), float(marker_size)
+    graph_width, marker_size = float(graph_width), float(marker_size)
 
     names = list(data.keys())
     n_display = len(names)
@@ -718,10 +809,10 @@ def update_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_l
         #(This really only concern x_range and y_range)
 
         #stores the parameters conserved between stelum, pulse and eig for a given name
-        graph_options[dropdown_graph_value]["common"].update({"line_width": line_width,
-                                                              "line_style": line_style,
-                                                              "line_label": line_label,
-                                                              "line_color": line_color,
+        graph_options[dropdown_graph_value]["common"].update({"graph_width": graph_width,
+                                                              "graph_style": graph_style,
+                                                              "graph_label": graph_label,
+                                                              "graph_color": graph_color,
                                                               "marker_bind": marker_bind})
 
         #And then, we update by tab, in which we set markers by default for PULSE:
@@ -734,15 +825,25 @@ def update_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_l
                                                                   "marker_color": marker_color})
         
         if marker_bind == True:
-            marker_color = line_color
+            marker_color = graph_color
 
-        store_graph_color = {"color":line_color}#so... yeah
+        store_graph_color = {"color":graph_color}#so... yeah
         #I just want the graph color of markers and line to be synched if marker_bind is true...
 
         graph_options[dropdown_graph_value]["mode"].update({"mode_displayed": mode_displayed,
                                                              "mode_color": mode_color})
 
-        figure = draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_value, dropdown_y_value)
+        current_line = {
+                        "line_value":line_value,
+                        "line_limits":line_limits,
+                        "line_direction":line_direction,
+                        "line_width":line_width,
+                        "line_style":line_style,
+                        "line_color":line_color}
+
+        update_line_options(ctx.triggered_id, line_label, store_datatable_data, dropdown_x_value, dropdown_y_value, **current_line)
+
+        figure = draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_value)
 
         return(figure, store_graph_color)
 
