@@ -1,4 +1,4 @@
-from dash import register_page, html, callback, Input, Output, State, dcc, MATCH, ALL, ctx
+from dash import html, callback, Input, Output, State, dcc, ALL, ctx
 import dash
 import dash_bootstrap_components as dbc
 import dash_latex as dl
@@ -6,11 +6,11 @@ from pathlib import Path
 import plotly.express as px
 import dash_mantine_components as dmc
 import numpy as np
-from DISP import data_reading
+from DISP import data_reading, custom_calc
+from DISP.global_vars import data, graph_options
 import time
 import copy
 import plotly.graph_objects as go
-
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -26,362 +26,109 @@ stelum_dropdown_options = ['n','r','mr','rho','p','t','chir','chit','grad','grad
                 'lum','eta','etar','kappa','kappar','kappat','grad_rad','zeta','eps','epsr','epst',
                 'log10_tau','w','wtau','delr','delp','delt','deltau','dellum','dp','dt','dadmd',
                 'ui','duidp','duidt','cp','cv','eta_e','zmoy','gamma',
-                'H','He','C','O','rhog']
+                'H','He','C','O','rhog',"L_1^2","L_2^2","L_3^2","L_4^2","N^2"]
+
+custom_stelum_key = ["L_1^2","L_2^2","L_3^2","L_4^2","N^2"]
 
 pulse_dropdown_options = ["Reduced_Pad","Reduced_Pspacing","Pad","Pspacing","L","K","Ekin", "Ckl","Kp","Kg","Kp+Kg"]
 
 name_options = ["names"]
 
-# @callback(
-#     Output("selected-color", "children"),
-#     Input("color-picker", "value"),
-# )
-# def pick(color):
-#     color = color.lstrip("#")
-#     r, g, b = tuple(int(color[i : i + 2], 16) for i in (0, 2, 4))
-#     rgba = f"rgba({r}, {g}, {b}, 1)"
-#     return html.Span(rgba, className="subtitles-config", style={"fontSize": "2vh"})
+## for dropdown later ##
+stelum_options = [{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options]
+pulse_options = [{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options]
+
+base_colors = {"colors":["#0000FF","#FF0000","#00FF00","#000000"]}
+#init at -1 to account for the init "None" model going through
+#AND for the init from the store-update-graph..
+#I should change this system tbh, it's not good
+mode_colors = ["#0000FF","#FF0000","#00FF00","#000000"]
 
 @callback(
-    Output("tab-container","children"), #actually need to change dropdowns and stuff too no ? Or we leave that to display:yes ?
-    #maybe just change the placeholder then it's fine :)
-    Output("line-value","placeholder"),
+    Output({"type": "tab-choosing", "group": 1, "name": ALL}, "className"),
     Output("store-active-tab","data"),
-    Input({"type":"tab-choosing", "group":1, "name":ALL}, "n_clicks"),
-    State("tab-container","children"),
+    Input({"type": "tab-choosing", "group": 1, "name": ALL}, "n_clicks"),
     State("store-active-tab","data")
 )
-def header_value(clicks, children, store_active_tab):
+def header_value(n_clicks, store_active_tab):
+    triggered = ctx.triggered_id #id of the button we clicked on
 
-    placeholder = "value || name:column"
+    if not triggered: #init at stelum
+        triggered = {'group': 1, 'name': 'btn-stelum', 'type': 'tab-choosing'}
 
     if store_active_tab is None:
-        store_active_tab = {"active_tab":"stelum", "previous_tab":"pulse"} #either stelum, pulse or eig
+            store_active_tab = {"active_tab":"pulse", "previous_tab":"stelum"} #either stelum, pulse or eig
 
-    try:
-        for props in children:
-            prop = props["props"]
-            if prop["id"]["name"] == ctx.triggered_id["name"]:
-                prop["className"] = "btn-choosen"
-                store_active_tab["previous_tab"] = store_active_tab["active_tab"]
-                store_active_tab["active_tab"] = ctx.triggered_id["name"].split("-")[1]
-            else:
-                prop["className"] = "btn-tab"
+    clicked_name = triggered["name"]
+    classnames = []
+    for btn in ctx.outputs_list[0]:
+        if btn["id"]["name"] == clicked_name:
+            classnames.append("btn-choosen")
+            store_active_tab["previous_tab"] = store_active_tab["active_tab"]
+            store_active_tab["active_tab"] = clicked_name.split("-")[-1]
+        else:
+            classnames.append("btn-tab")
 
-            if ctx.triggered_id["name"] == "btn-pulse":
-                placeholder = "value || name:k || name:pi0"
-    except:
-        children[0]["props"]["className"] = "btn-choosen"
-
-    return(children, placeholder, store_active_tab)
+    return classnames, store_active_tab
 
 @callback(
-    Output("store-displayed","data"),
-    Output("dropdown-graph-container", "children"),
-    Input("store-datatable-data","data"),#triggers on adding new models or changing display to "yes"
+    Output("dropdown-graph","options"),
+    Output("dropdown-graph-container","children"),
+    Input("store-datatable-data","data") #triggers on adding new models or changing display to "yes"
 )
 def store_file_data(store_datatable_data):
 
-    datatable = copy.deepcopy(store_datatable_data) #this is ABSOLUTELY NECESSARY
-    #but you know the fun thing ? I HAVE NO CLUE WHY
-    #otherwise it triggers a callback loop between page1 and 2 on store-displayed edit, and I'm way too tired to understand why imma be honest
-    #that's an #onlyDashthings if I've ever seen one holy smokes
+    global data #only because dcc.Store is limited in storage :)
+    #this is also because dcc.Store doesn't allow nested dicts, and that makes me a sad person
+    #An actual good general rule is :
+    # - If the dcc.Store isn't used as an Input anywhere, then turn it into a global instead !
 
-    dict_structure = {key:[] for key in (name_options + stelum_dropdown_options + pulse_dropdown_options)}
+    display = np.array(store_datatable_data["table_data"]["display"])
+    display_indexes = np.where(display != "no")[0]
+    #yeah, technically anything but "no" works, in case of misstypes ?
 
-    try:#so, dash convert numpy arrays to list when they are parsed in to a dcc.Store
-        #because it serializes in JSON, so, yeah that's happening...
-        display = np.array(datatable["table_data"]["display"])
+    names = np.array(store_datatable_data["names"])[display_indexes]
+    spes = np.array(store_datatable_data["spe"])[display_indexes]
+    path_stelums = np.array(store_datatable_data["stelum_paths"])[display_indexes]
+    path_pulses = np.array(store_datatable_data["pulse_paths"])[display_indexes]
 
-        display_indexes = np.where(display != "no")[0] #in case of misstypes I guess ?
+    for name, spe, path_stelum, path_pulse in zip(names, spes, path_stelums, path_pulses):
 
-        names = np.array(datatable["names"])[display_indexes]
-        spes = np.array(datatable["spe"])[display_indexes]
-        path_stelums = np.array(datatable["stelum_paths"])[display_indexes]
-        path_pulses = np.array(datatable["pulse_paths"])[display_indexes]
+        name = str(name) #this is just for prints for myself, don't mind it
 
-        for name, spe, path_stelum, path_pulse in zip(names, spes, path_stelums, path_pulses):
+        if name not in list(data.keys()):
+            data[name] = data_reading.data_parsing(spe, path_stelum, path_pulse)
+            #str(name) to avoid the np.str, it's just cleaner on prints really...
+            #SHOULD BE IN A POPEN ? or only disjoint the .eig I guess, which are the bottleneck here
+            #there is now a dict of keys "stelum","pulse","eig" and key in data["names"][name]
+            #so to access a quantity: data["names"][name]["stelum"][quantity]
+            #which looks convoluted but I mean, it's the most handy I can get there
 
-            data_dict = data_reading.data_parsing(spe, path_stelum, path_pulse) #returns {"stelum":{},"pulse":{}} dict of dict
-            dict_structure["names"].append(name)
-            stelum_keys, pulse_keys = list(data_dict["stelum"].keys()), list(data_dict["pulse"].keys())
-            #might be some huge overhead but we'll see, with the lenght of the files
-            #I'm concerned about the .eig in particular...
+        stelum_keys, pulse_keys = list(data[name]["stelum"].keys()), list(data[name]["pulse"].keys())
 
-            for key in stelum_keys:
-                dict_structure[key].append(data_dict["stelum"][key])
+        for key in custom_stelum_key:
+            if key not in stelum_keys:
+                if key == "N^2":
+                    data[name]["stelum"].update({key:custom_calc.brunt_vaisala_freq(data[name]["stelum"])})
+                #yes yes I know, I'm just lazy here
+                elif key == "L_1^2":
+                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],1)})
+                elif key == "L_2^2":
+                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],2)})
+                elif key == "L_3^2":
+                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],3)})
+                elif key == "L_4^2":
+                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],4)})
 
-            pulse_data = {key:[] for key in pulse_dropdown_options}
-            #so, I should just change how the data_parsing work, but I ain't gonna lie, I don't have this type of time right now
-            #This will do, even though it hurts me in some harsh type of ways
-            for key in pulse_keys:
-                sub_keys = list(data_dict["pulse"][key])
-                for sub_key in sub_keys:
-                    if sub_key in pulse_dropdown_options:
-                        pulse_data[sub_key].append(data_dict["pulse"][key][sub_key])
+    dropdown_options = [{"label": name, 'value': name} for name in names]
 
-            for key in pulse_dropdown_options:
-                dict_structure[key].append(pulse_data[key])
+    if len(names) == 1:#init
 
-        dropdown_children = [dcc.Dropdown(id="dropdown-graph", options=[{"label": name, 'value': name} for name in names], style={"height": "75%", "width": "80%"},value=names[0],clearable=False,persistence=True,persistence_type="session")]
+        dropdown_children = [dcc.Dropdown(id="dropdown-graph", options=dropdown_options, style={"height": "75%", "width": "80%"},value=names[0],clearable=False,persistence=True,persistence_type="session")]
 
-        return(copy.deepcopy(dict_structure), dropdown_children) #copy.deepcopy might be unecessary there
+        return(dash.no_update, dropdown_children)
 
-    except Exception as e: ##just for me during debugging
-        import traceback
-        print("Error:", e)
-        traceback.print_exc()
-        raise(dash.exceptions.PreventUpdate)
-
-
-@callback( #changes children on page-change (well, tab change, but you get it)
-    Output("dropdown-div","children"),
-    Output("store-dropdown-values","data"),
-    Output("displayed-modes","style"),
-    Output("modes-color","style"),
-    # Output("separator","style"),
-    Input("store-active-tab","data"),
-    State("dropdown-x","value"),
-    State("dropdown-y","value"),
-    State("store-dropdown-values","data"),
-    prevent_initial_call=True
-)
-def updates_on_tab_change(store_active_tab, value_x, value_y, store_dropdown_values):
-
-    tab = store_active_tab["active_tab"]
-    prev_tab = store_active_tab["previous_tab"]
-    
-    if store_dropdown_values is None:
-        store_dropdown_values = {"stelum": ["lq","n"], "pulse": ["Reduced_Pad","Reduced_Pspacing"]}
-    
-    store_dropdown_values[prev_tab] = [value_x, value_y]
-    
-    ### memory of graph dropdown are kept here
-    if tab == "stelum":
-        dropdown_children = html.Div(children=[
-            dcc.Dropdown(id="dropdown-x", options=[{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options], 
-                        style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},
-                        value=store_dropdown_values[tab][0], clearable=False),
-            dcc.Dropdown(id="dropdown-y", options=[{"label": f"{value}", 'value': f"{value}"} for value in stelum_dropdown_options], 
-                        style={"height": "100%", "width": "98%", "marginRight": "2%"},
-                        value=store_dropdown_values[tab][1], clearable=False)
-        ], id=f"dropdown-wrapper-{tab}", style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"})
-
-        style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"none"}
-        style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}
-        # separator = {"width":"90%","display":"none"}
-
-    elif tab == "pulse":
-        dropdown_children = html.Div(children=[
-            dcc.Dropdown(id="dropdown-x", options=[{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options], 
-                        style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},
-                        value=store_dropdown_values[tab][0], clearable=False),
-            dcc.Dropdown(id="dropdown-y", options=[{"label": f"{value}", 'value': f"{value}"} for value in pulse_dropdown_options], 
-                        style={"height": "100%", "width": "98%", "marginRight": "2%"},
-                        value=store_dropdown_values[tab][1], clearable=False)
-        ], id=f"dropdown-wrapper-{tab}", style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"})
-
-        style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"block"}
-        style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"block"}
-        # separator = {"width":"90%","display":"block"}
-
-    return dropdown_children, store_dropdown_values, style_modes, style_color
-    # return dropdown_children, store_dropdown_values, style_modes, style_color, separator
-
-def update_children_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label):
-
-    if x_reversed == True:
-        x_range = x_range[::-1]
-    if y_reversed == True:
-        y_range = y_range[::-1]
-
-    #yes this can be done in comprehension
-    #yes I'm just trying my hand at lambda functions, which turns out, is simple
-    if x_scale == "log":
-        x_range = list(map(lambda x: np.round(10**x,2), x_range))
-    else:
-        x_range = list(map(lambda x: np.round(x,2), x_range))
-
-    if y_scale == "log":
-        y_range = list(map(lambda x: np.round(10**x,2), y_range))
-    else:
-        y_range = list(map(lambda x: np.round(x,2), y_range))
-
-    label_container = [
-        # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
-    #                 children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
-            html.Div(
-                style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
-                children=[
-                    html.Div(
-                        style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
-                        children=[
-                            html.Span("x_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                            dbc.Input(id="x-label", placeholder="X(He)_{core}", value=x_label, style={"height": "100%", "width": "35%", "marginRight": "5%"}),
-                            html.Span("y_label: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                            dbc.Input(id="y-label", placeholder="latex on save graph works", value=y_label, style={"height": "100%", "width": "35%", "marginRight": "5%"})
-                        ]
-                    )
-                ]
-            )]
-
-    range_container = [
-        # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center", "marginRight":"1vw"}, 
-        # children=[html.Span("Axes ranges|scale: ", className="subtitles-config", style={"fontSize": "2vh"})]),
-        html.Div(
-            style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
-            children=[
-                html.Div(
-                    style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start", "marginBottom": "0.5vh"},
-                    children=[
-                        html.Span("x_range: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dbc.Input(id="x-range", placeholder="-1,15.6", value = ",".join(map(str, x_range)), style={"height": "100%", "width": "22%", "marginRight": "5%"}),
-                        html.Span("x_scale: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dcc.RadioItems(
-                                id="x-scale",
-                                options=[
-                                    {"label": "Linear", "value": "linear"},
-                                    {"label": "Logarithmic", "value": "log"},
-                                ],
-                                value=x_scale,
-                                labelStyle={"display": "block"},
-                                style={"marginRight":"2vw","fontSize":"2vh"}
-                            ),
-                        html.Span("reversed: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dbc.Checkbox(id="x-reversed", value=x_reversed),
-                    ]
-                ),
-                html.Div(
-                    style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "flex-start"},
-                    children=[
-                        html.Span("y_range: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dbc.Input(id="y-range", placeholder="2,1e6", value= ",".join(map(str, y_range)), style={"height": "100%", "width": "22%", "marginRight": "5%"}),
-                        html.Span("y_scale: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dcc.RadioItems(
-                                id="y-scale",
-                                options=[
-                                    {"label": "Linear", "value": "linear"},
-                                    {"label": "Logarithmic", "value": "log"},
-                                ],
-                                value=y_scale,
-                                labelStyle={"display": "block"},
-                                style={"marginRight":"2vw","fontSize":"2vh"}
-                            ),
-                        html.Span("reversed: ", className="subtitles-config", style={"fontSize": "2vh", "marginRight": "1%"}),
-                        dbc.Checkbox(id="y-reversed", value=y_reversed),
-                    ]
-                )
-            ]
-        )]
-    
-    return(label_container, range_container)
-
-@callback(
-    Output("axes-label-container","children"),
-    Output("axes-range-container","children"),
-    Input("dropdown-x","value"),
-    Input("dropdown-y", "value"),
-    State("store-graph-options","data")
-)
-def memory_dropdown_key_state(value_x, value_y, store_graph_options):
-
-    try:
-        sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
-        label_container, range_container = update_children_graph(*sub_store_graph_options)
-    except Exception as e: ##just for me during debugging
-        import traceback
-        print("Error:", e)
-        traceback.print_exc()
-
-        sub_store_graph_options = ['', '', 'linear', 'linear', False, False, '', '']
-        label_container, range_container = update_children_graph(*sub_store_graph_options)
-
-    return(label_container, range_container)
-
-def update_children_left_footer(linewidth, linestyle, model_label, color, markers, marker_size, marker_style, marker_color, model_name, active_tab):
-    
-    if active_tab == "pulse":
-        displayed = "block"
-    else:
-        displayed = "none"
-
-    left_footer_children = [
-        html.Div(
-            id="graph-option-container",
-            key=f"graph-option-container-{model_name}",
-            style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
-            children=[
-                dbc.Input(id="graph-width", key=f"graph-width-{model_name}", placeholder="linewidth", value=linewidth, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(id="graph-style", key=f"graph-style-{model_name}", placeholder="linestyle", value=linestyle, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(id="graph-label", key=f"graph-label-{model_name}", placeholder="label", value=model_label, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(type="color", id="graph-color", key=f"graph-color-{model_name}", value=color,style={"height":"15%","width":"80%"}, debounce=True),
-            ]
-        ),
-        html.Div(
-            id="markers-options-container",
-            key=f"markers-options-container-{model_name}",
-            style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
-            children=[
-                html.Div(style={"display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center", "height":"15%"},
-                    children=[
-                        html.Span("markers: ", className="subtitles-config", style={"fontSize": "2vh","marginRight": "10%", "marginBottom":"0.5vh"}),
-                        dbc.Checkbox(id="markers", value=markers, persistence=False)
-                    ]),
-                dbc.Input(id="marker-size", key=f"marker-size-{model_name}", placeholder="marker size", value=marker_size, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(id="marker-style", key=f"marker-style-{model_name}", placeholder="marker style", value=marker_style, persistence=False, style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                dbc.Input(type="color", id="marker-color", key=f"marker-color-{model_name}", value=marker_color,style={"height":"15%","width":"80%"}, debounce=True),
-            ]
-        ),
-        html.Div(
-            id="color-picker-container",
-            style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
-            children=[
-                # dbc.InputGroup(style={"width":"80%"},
-                #     children = [
-                #         dbc.InputGroupText("Click to pick a color", style={
-                #                                                         "textAlign": "center",
-                #                                                         "display": "flex",
-                #                                                         "alignItems": "center",
-                #                                                         "justifyContent": "center",
-                #                                                         "width": "100%",
-                #                                                         "color":"white",
-                #                                                         "marginBottom":"1vh",
-                #                                                         "fontSize":"2vh"
-                #                                                     },),
-                #         dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
-                #     ]
-                # ),
-                # html.Div(
-                #     id="selected-color",
-                #     style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                # ),
-                # html.Hr(id="separator", style={"width":"90%","display":"none"}),
-                dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":displayed}),
-                dbc.Input(id="modes-color", placeholder="color - blue,red,rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":displayed}),
-            ]
-        )
-    ]
-    
-    return left_footer_children
-
-@callback(
-    Output("left-footer-container", "children"),
-    Input("dropdown-graph", "value"),
-    State("store-graph-options", "data"),
-    State("store-active-tab", "data"),
-)
-def memory_dropdown_name_model(name, store_graph_options, store_active_tab):
-    self_options = store_graph_options[f"{name}_{store_active_tab['active_tab']}"]
-    common_options = store_graph_options[f"{name}_common"]
-    left_footer_children = update_children_left_footer(*common_options, *self_options, name, store_active_tab["active_tab"])
-    
-    #here you might say "hey wait, why's that guy building the WHOLE left footer children ?"
-    #well, it's because otherwise the dbc.Input menu flickers du to the not amazing way Reacts handle those components
-    #so I trade a flicker on the color picker for an annoying flicker on the whole footer
-    #not mentionning the fact that it retained previous input value if I didn't rebuild the whole thing
-    #anyways, only Dash things I guess
-
-    return left_footer_children
+    return(dropdown_options, dash.no_update)
 
 @callback(
     Output("store-line-data","data"),
@@ -483,9 +230,433 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
     return(store_line_data)
 
 @callback(
+    Output("x-range","value"),
+    Output("y-range","value"),
+    Output('x-scale',"value"),
+    Output("y-scale","value"),
+    Output("x-reversed","value"),
+    Output("y-reversed","value"),
+    Output("x-label","value"),
+    Output("y-label","value"),
+    Input("dropdown-x","value"),
+    Input("dropdown-y","value"),
+    Input("store-active-tab-graph","data"), #this is because this callback needs to trigger AFTER the tab change, not before
+)
+def memory_imprint_graph(dropdown_x_value, dropdown_y_value, store_active_tab):
+
+    global graph_options
+
+    keys = ["ranges","scale","reversed_axis"]
+
+    default = [None,"linear",False] #not filled Inputs, linear scale and not reversed
+
+    if graph_options.get(f"{dropdown_x_value}_x"):
+        x_range, x_scale, x_reversed = [graph_options[f"{dropdown_x_value}_x"][key] for key in keys]
+        x_label = graph_options[f"{dropdown_x_value}_x"]["label"]
+    else:
+        graph_options[f"{dropdown_x_value}_x"] = {}
+        graph_options[f"{dropdown_x_value}_x"].update({key:default_value for key, default_value in zip(keys, default)})
+        graph_options[f"{dropdown_x_value}_x"].update({"label":dropdown_x_value})
+        x_range, x_scale, x_reversed = default
+        x_label = dropdown_x_value
+
+    if graph_options.get(f"{dropdown_y_value}_y"):
+        y_range, y_scale, y_reversed = [graph_options[f"{dropdown_y_value}_y"][key] for key in keys]
+        y_label = graph_options[f"{dropdown_y_value}_y"]["label"]
+    else:
+        graph_options[f"{dropdown_y_value}_y"] = {}
+        graph_options[f"{dropdown_y_value}_y"].update({key:default_value for key, default_value in zip(keys, default)})
+        graph_options[f"{dropdown_y_value}_y"].update({"label":dropdown_y_value})
+        y_range, y_scale, y_reversed = default
+        y_label = dropdown_y_value
+
+    return(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label)
+
+@callback(
+    Output("graph-width","value"),
+    Output("graph-style","value"),
+    Output("graph-label","value"),
+    Output("graph-color","value"),
+    Output("marker-bind","value"),
+    Output("markers","value"),
+    Output("marker-size","value"),
+    Output("marker-style","value"),
+    Output("marker-color","value"),
+    Output("displayed-modes","value"),
+    Output("modes-color","value"),
+    Input("dropdown-graph","value"),
+    Input("store-active-tab-graph","data"), #this is because this callback needs to trigger AFTER the tab change, not before
+    Input("dropdown-graph","options")
+)
+def memory_imprint_model(dropdown_graph_value, store_active_tab, dropdown_graph_options):
+
+    #this function really ought to be shorter, lots of things are repeated I feel like...
+
+    global graph_options
+
+    active_tab = store_active_tab["active_tab"]
+    common_keys = ["line_width","line_style","line_label","line_color","marker_bind"]
+    self_keys = ["marker_enabled","marker_size","marker_style","marker_color"]
+    mode_keys = ["mode_displayed","mode_color"]
+    count_color = -1
+
+    for option in dropdown_graph_options:
+        name = option["label"]
+        count_color += 1
+        if name == dropdown_graph_value:
+            if graph_options.get(name) and graph_options.get("active_tab"): #aka, if the tab has just been changed
+                if graph_options["active_tab"] != active_tab:
+                    if graph_options[name].get(active_tab): #if the active_tab dict is already there
+                        #then we return the values associated to it directly
+                        #overwise, we'll overwrite pulse values with stelum values, and so on
+                        graph_options["active_tab"] = active_tab
+                        marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
+
+                        return(dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, marker_enabled, marker_size, marker_style, marker_color, dash.no_update, dash.no_update)
+
+            if graph_options.get(name):
+                if graph_options[name].get("common"):
+                    line_width, line_style, line_label, line_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
+                if graph_options[name].get(active_tab):
+                    marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
+                else: #this is in case we change tabs, we need to init the dict according to it
+                    graph_options[name][active_tab] = {"marker_enabled":False,
+                                                    "marker_size":4,
+                                                    "marker_style":"circle",
+                                                    "marker_color":line_color}
+
+                    if active_tab == "pulse":
+                        graph_options[name][active_tab]["marker_enabled"] = True
+                        graph_options[name][active_tab]["marker_size"] = 8
+
+                marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
+
+                if graph_options[name].get("mode"):
+                    mode_displayed, mode_colors = [graph_options[name]["mode"][key] for key in mode_keys]
+            else:
+                graph_options[name] = {"common":{}, active_tab:{}, "mode":{}}
+                color = base_colors["colors"][count_color%len(base_colors["colors"])]
+                graph_options[name]["common"] = {"line_width":2,
+                                                "line_style":"solid",
+                                                "line_label":name,
+                                                "line_color":color,
+                                                "marker_bind":True}
+                line_width, line_style, line_label, line_color, marker_bind = [graph_options[name]["common"][key] for key in common_keys]
+                
+                graph_options[name][active_tab] = {"marker_enabled":False,
+                                                "marker_size":4,
+                                                "marker_style":"circle",
+                                                "marker_color":graph_options[name]["common"]["line_color"]}
+                marker_enabled, marker_size, marker_style, marker_color = [graph_options[name][active_tab][key] for key in self_keys]
+
+                if graph_options[name]["mode"]:
+                    mode_displayed, mode_colors = [graph_options[name]["mode"][key] for key in mode_keys]
+                else:
+                    graph_options[name]["mode"]["mode_displayed"] = '1,2'
+                    graph_options[name]["mode"]["mode_color"] = 'blue;red'
+                    mode_displayed, mode_colors = [graph_options[name]["mode"][key] for key in mode_keys]
+
+                if active_tab == "pulse":
+                    graph_options[name][active_tab]["marker_enabled"] = True
+                    graph_options[name][active_tab]["marker_size"] = 8
+
+            if marker_bind == True:
+                graph_options[name][active_tab]["marker_color"] = graph_options[name]["common"]["line_color"]
+                marker_color = line_color
+
+            graph_options["active_tab"] = active_tab
+        else:
+            #here we HAVE to init the other graphs
+            #otherwise it won't display correctly for multiple models from the get go
+            #I'll look into making the func more readable later on
+            if graph_options.get(name): #init if name exists
+                for tab in ["stelum","pulse"]:
+                    if not graph_options[name].get(tab):
+                        graph_options[name][tab] = {"marker_enabled":False,
+                                                            "marker_size":4,
+                                                            "marker_style":"circle",
+                                                            "marker_color":graph_options[name]["common"]["line_color"]}
+                        if tab == "pulse":
+                            graph_options[name][tab]["marker_enabled"] = True
+                            graph_options[name][tab]["marker_size"] = 8
+
+            else: #init if nothing exists
+                graph_options[name] = {"common":{}, "stelum":{}, "pulse":{}, "mode":{}}
+                color = base_colors["colors"][count_color%len(base_colors["colors"])]
+                graph_options[name]["common"] = {"line_width":2,
+                                                "line_style":"solid",
+                                                "line_label":name,
+                                                "line_color":color,
+                                                "marker_bind":True}
+
+                for tab in ["stelum","pulse"]:
+                    graph_options[name][tab] = {"marker_enabled":False,
+                                                    "marker_size":4,
+                                                    "marker_style":"circle",
+                                                    "marker_color":graph_options[name]["common"]["line_color"]}
+                    if tab == "pulse":
+                        graph_options[name][tab]["marker_enabled"] = True
+                        graph_options[name][tab]["marker_size"] = 8
+
+                graph_options[name]["mode"]["mode_displayed"] = '1,2'
+                graph_options[name]["mode"]["mode_color"] = 'blue;red'
+
+    if graph_options.get(None):#very first iterations cleanup, not very clean though
+        del graph_options[None]
+    if graph_options.get("name"):
+        del graph_options["name"]
+
+    return(line_width, line_style, line_label, line_color, marker_bind, marker_enabled, marker_size, marker_style, marker_color, mode_displayed, mode_colors)
+
+def dropdown_creation(set_id, options, value):
+
+    return(dcc.Dropdown(id=set_id, options=options,
+                        style={"height": "100%", "width": "98%", "marginLeft": "1%", "marginRight": "1%"},
+                        value=value, clearable=False))
+
+@callback( #changes children on tab-change
+           #this is just for the dropdown options !
+    Output("dropdown-div","children"),
+    Output("store-dropdown-values","data"),
+    Output("displayed-modes","style"),
+    Output("modes-color","style"),
+    Output("graph-color-container","style"),
+    Output("marker-color-container","style"),
+    Output("marker-span-bind","style"),
+    Output("marker-bind","style"),
+    Output("store-active-tab-graph","data"),
+    Input("store-active-tab","data"),
+    Input("dropdown-graph","options"), #here to trigger on display change
+    #otherwise if we're on pulse tab already, it won't remove the color thing
+    State("dropdown-x","value"),
+    State("dropdown-y","value"),
+    State("store-dropdown-values","data"),
+    
+    prevent_initial_call=True
+)
+def updates_on_tab_change(store_active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_value, store_dropdown_values):
+
+    n_models = len(dropdown_graph_options)
+
+    active_tab = store_active_tab["active_tab"]
+    previous_tab = store_active_tab["previous_tab"]
+
+    #this store is our memory for tabs values
+    if store_dropdown_values is None:
+        store_dropdown_values = {"stelum":["lq","n"], "pulse":["Reduced_Pad","Reduced_Pspacing"]}
+
+    if ctx.triggered_id == "store-active-tab": #this avoid accidentally switching tab if we're here because of dropdown-graph-options
+        store_dropdown_values[previous_tab] = [dropdown_x_value, dropdown_y_value]
+
+    x_id, y_id = "dropdown-x", "dropdown-y"
+
+    style_modes = {"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"2vh","display":"none"}
+    style_color = {"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}
+    style_color_graph_maker = {"height":"5vh","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center"}
+    style_span = {"fontSize": "2vh","marginRight": "3%"}
+    style_checkbox = {}
+
+    if active_tab == "stelum":
+        dropdown_x = dropdown_creation(x_id, stelum_options, store_dropdown_values[active_tab][0])
+        dropdown_y = dropdown_creation(y_id, stelum_options, store_dropdown_values[active_tab][1])
+
+    if active_tab == "pulse":
+        dropdown_x = dropdown_creation(x_id, pulse_options, store_dropdown_values[active_tab][0])
+        dropdown_y = dropdown_creation(y_id, pulse_options, store_dropdown_values[active_tab][1])
+        
+        style_modes["display"] = "block"
+        if n_models < 2:
+            style_color["display"] = "block"
+            style_color_graph_maker["display"] = "none" #disabled colors else than mode colors
+            style_span["display"] = "none"
+            style_checkbox["display"] = "none"
+
+    dropdown_children = html.Div(children=[
+        dropdown_x,
+        dropdown_y],
+        id=f"dropdown-wrapper-{active_tab}", style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "row"})
+
+    store_active_tab_graph = copy.deepcopy(store_active_tab)#used to order the callbacks
+    #In reality this could be anything really, as long as it trigger the memory_imprint callbacks
+
+    return(dropdown_children, store_dropdown_values, style_modes, style_color, style_color_graph_maker, style_color_graph_maker, style_span, style_checkbox, store_active_tab_graph)
+
+def graph_update():
+
+    global data, graph_options
+
+
+def draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_value, dropdown_y_value):
+
+    global graph_options, data
+
+    n_models = len(dropdown_graph_options)
+
+    if n_models == 0:
+        return(dash.no_update)
+
+    #here we don't really have a choice, gotta use ifs to disjoint cases
+
+    fig = go.Figure()
+
+    def draw_func(data_x, data_y, *, line_label, line_color, line_width, line_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
+
+        if kwargs.get("mode_color"):
+            line_color = kwargs["mode_color"]
+            marker_color = kwargs["mode_color"]
+
+        if kwargs.get("mode_displayed"):
+            line_label = f"l{kwargs["mode_displayed"]} {line_label}"
+
+        if marker_bind == True:
+            marker_color = line_color
+
+        trace_args = dict(
+                x = data_x,
+                y = data_y,
+                mode = "lines",
+                name = line_label,
+                line = dict(
+                    color = line_color,
+                    width = line_width,
+                    dash = line_style
+                )
+            )
+
+        if marker_enabled == True:
+
+            trace_args["mode"] = "lines+markers"
+            trace_args["marker"] = dict(
+                color = marker_color,
+                size = marker_size,
+                symbol = marker_style
+            )
+
+        return(trace_args)
+
+    if active_tab == "stelum":
+        #for stelum graph, it's simple, just parse in all the arguments really
+
+        for option in dropdown_graph_options:
+
+            name = option["label"]
+            
+            common_opt = graph_options[name]["common"]
+            self_opt = graph_options[name][active_tab]
+
+            data_x = data[name][active_tab][f"{dropdown_x_value}"]
+            data_y = data[name][active_tab][f"{dropdown_y_value}"]
+
+            trace_args = draw_func(data_x, data_y, **common_opt, **self_opt)
+            fig.add_trace(go.Scatter(**trace_args))
+            #I love those unpacking operators, it's so elegant :p
+
+    if active_tab == "pulse":
+
+        if n_models == 1:
+
+            name = dropdown_graph_options[0]["label"]
+            common_opt = graph_options[name]["common"]
+            self_opt = graph_options[name][active_tab]
+
+            mode_opt = graph_options[name]["mode"]
+            mode_displayed = list(map(int,mode_opt["mode_displayed"].split(",")))
+            mode_color = mode_opt["mode_color"].split(";")
+
+            for i,mode in enumerate(mode_displayed):
+
+                data_x = data[name][active_tab][mode][f"{dropdown_x_value}"]
+                data_y = data[name][active_tab][mode][f"{dropdown_y_value}"]
+
+                trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, **{"mode_displayed":mode_displayed[i], "mode_color":mode_color[i]})
+                fig.add_trace(go.Scatter(**trace_args))
+
+        elif n_models > 1:
+
+            for option in dropdown_graph_options:
+
+                name = option["label"]
+                
+                common_opt = graph_options[name]["common"]
+                self_opt = graph_options[name][active_tab]
+
+                mode_opt = graph_options[name]["mode"]
+                mode_displayed = int(mode_opt["mode_displayed"].split(",")[0])
+                #by default always only show the first of mode_displayed
+
+                data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
+                data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
+
+                trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, mode_displayed=mode_displayed)
+                fig.add_trace(go.Scatter(**trace_args))
+
+    x_opt = graph_options[f"{dropdown_x_value}_x"]
+    y_opt = graph_options[f"{dropdown_y_value}_y"]
+
+    def build_axis(*, label, ranges, scale, reversed_axis):
+
+        axis_dict = dict(
+            showgrid = False,
+            title = label,
+            type = scale,
+            showexponent = 'all',
+            exponentformat = 'e',
+            ticks = 'outside',
+            ticklen = 6,
+            tickwidth = 2,
+        )
+
+        if ranges == None or ranges == "":
+            if reversed_axis == True:
+                axis_dict["autorange"] = "reversed"
+            else:
+                axis_dict["autorange"] = True
+        else:
+            range_list = list(map(float,ranges.split(",")))
+            if reversed_axis == True:
+                range_list = axis_dict["range"][::-1]
+            if scale == "log":
+                range_list = list(map(np.log10,range_list))
+
+            axis_dict["range"] = range_list
+        
+        return(axis_dict)
+
+    fig.update_layout(
+        font=dict(color="black"),
+        legend=dict(
+            xref="paper", yref="paper",
+            x=0.99, y=0.99,
+            xanchor="right", yanchor="top",
+            traceorder="normal"
+        ),
+        margin = dict(l=10, r=10, t=10, b=10),
+        showlegend=True,
+        xaxis = build_axis(**x_opt),
+        yaxis = build_axis(**y_opt))
+
+    return(fig)
+
+@callback(
+    Output("marker-color-container","children"),
+    Input("store-graph-color","data"),
+    State("dropdown-graph","value"),
+    #so this is nitpicking, but if binding == True I want the marker color to match the line color indicator...
+)
+def matching_colors(store_graph_color, dropdown_graph_value):
+
+    global graph_options
+
+    if graph_options[dropdown_graph_value]["common"]["marker_bind"] == True:
+        return([dbc.Input(type="color", id="marker-color", value=store_graph_color["color"],style={"height":"100%","width":"80%"}, debounce=True)])
+    else:
+        return(dash.no_update)
+
+
+@callback(
     Output("right-side-graph","figure"),
-    Output("store-graph-options","data"),
-    Input("store-displayed","data"),
+    Output("store-graph-color","data"),
+    ### Input from dcc.Inputs ###
     Input("x-range","value"),
     Input("y-range","value"),
     Input('x-scale',"value"),
@@ -502,646 +673,81 @@ def update_line_information(click_add, click_remove, line_value, line_limits, li
     Input("marker-size","value"),
     Input("marker-style","value"),
     Input("marker-color","value"),
+    Input("marker-bind","value"),
     Input("displayed-modes","value"),
     Input("modes-color","value"),
+
+    ### If Lines are added or removed ###
     Input("store-line-data","data"),
+
+    # Those are necessary "State"
+    # Because they are used as Input for memory imprints
     State("store-active-tab","data"),
-    State("store-graph-options","data"),
     State("dropdown-x","value"),
     State("dropdown-y","value"),
     State("dropdown-graph","value"),
-    prevent_initial_call=True,
+    State("dropdown-graph","options"),
 )
-def update_graph(store_displayed, x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, linewidth, linestyle, model_label, color, markers, marker_size, marker_style,  marker_color, modes_displayed, modes_colors, store_line_data, store_active_tab, store_graph_options, value_x, value_y, dropdown_model_name):
+def update_graph(x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label, line_width, line_style, line_label, line_color, marker_enabled, marker_size, marker_style, marker_color, marker_bind, mode_displayed, mode_color, store_line_data, store_active_tab, dropdown_x_value, dropdown_y_value, dropdown_graph_value,dropdown_graph_options):
 
-    n_names = len(store_displayed["names"])
+    global data, graph_options
+    #again here, better to use those than dcc.Store
+    #Trust me, I've tried both :)
+    #dcc.Store only leads to spaghetti code if not needed as Input trigger
+    #also, those global variable are not "None" at init, which is very welcome
+
+    line_width, marker_size = float(line_width), float(marker_size)
+
+    names = list(data.keys())
+    n_display = len(names)
     active_tab = store_active_tab["active_tab"]
-
-    if n_names > 0:
-
-        names = store_displayed["names"]
-
-        if store_graph_options is None:
-            store_graph_options = {}
-
-        if not store_graph_options.get(f"{value_x}_{value_y}"): #first time the specific key pair is used
-
-            store_graph_options.update({f"{value_x}_{value_y}":[""]*8})
-            #0:x_range, 1:y_range, 2:x_scale, 3:y_scale, 4:x_reversed, 5:y_reversed, 6:x_label, 7:y_label
-            #associated to each given pair of dropdown values across stelum, pulse, eig
-            #of course this supposes no pair are dupes, which should completely be the case
-
-            #You might want to say "why is this absolute idiot not using a dictionnary", well, it's because you can't
-            #it's not JSON serializable apparently, and so only the top most layer of dcc.Store can be a dictionnary
-            #so I have to painfully suffer through lists of lists of lists
-
-        parameters = [x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label]
-
-        for i, parameter in enumerate(parameters):
-            if (parameter is not None) and (parameter != ""):
-                store_graph_options[f'{value_x}_{value_y}'][i] = parameter
-            else:
-                store_graph_options[f'{value_x}_{value_y}'][i] = ""
-
-        x_values, y_values = [], []
-
-        for i in range(n_names):
-            x_values.append(store_displayed[value_x][i])
-            y_values.append(store_displayed[value_y][i])
-
-        store_graph_options[f'{value_x}_{value_y}'] = formatting_graph_options(store_graph_options[f'{value_x}_{value_y}'], x_values, y_values, value_x, value_y, active_tab, modes_displayed)
-
-        #This is deactivated for now but I'm terrified of a potential MEGA overhead
-        #if someone leaves the apply open and does like 500 different combination of graphs, that thing is going to get real slow real quick...
-        #And I don't really want to put a "cleanup" button in there do I ?
-        #I guess it comes down to design choices all in all
-
-        # keys = list(store_graph_options.keys())
-
-        # for key in keys: #lil cleanups so that we don't get too much overhead if someone leave the program open for god knows how long
-        #     #the thing is I'm not sure it's the best of ideas yet. It might be worth to keep the configs
-        #     #because then we could quickly switch between what is displayed without config loss...
-        #     #to think about honestly.
-        #     splitted = key.split("_")
-        #     if (splitted[0] not in stelum_dropdown_options) and ((splitted[0] not in pulse_dropdown_options)): #aka, one name, one key, another key
-        #         name = "_".join(splitted[0:-2])
-        #         if name not in names:
-        #             del store_graph_options[key]
-
-        for name in names:
-            #so, I initialize all the name in display, but of course, the parameters are only choosen for one name at a time
-            #otherwise this is complete chaos obviously (it already is, do not look the callbacks graph in debug mode...)
-
-            if not store_graph_options.get(f"{name}_{active_tab}"): #first time the specific trio name_key1_key2 is used
-                #this actually only store markers
-
-                store_graph_options.update({f"{name}_{active_tab}":['']*4})
-                if active_tab == "stelum":
-                    store_graph_options[f"{name}_{active_tab}"][0] = False #by default, no markers
-                #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
-                elif active_tab == "pulse":
-                    store_graph_options[f"{name}_{active_tab}"][0] = True #markers are enabled automatically on PULSE, generally we want them
-
-            if not store_graph_options.get(f"{name}_common"): #this update the linestyle
-                #called common in case the distribution changes
-                store_graph_options.update({f"{name}_common":['']*4})
-                #0:linewidth, 1:linestyle, 2:model_label, 3:color
-
-        tab_params = [linewidth, linestyle, model_label, color]
-        common_params = [markers, marker_size, marker_style,  marker_color]
-
-        for i, (common_param, tab_param) in enumerate(zip(common_params, tab_params)): #only works cause same size on both tab and commmon params, careful
-            #otherwise, two iterations will be needed
-
-            if (common_param is not None) and (common_param != ""):
-                store_graph_options[f"{dropdown_model_name}_{active_tab}"][i] = common_param
-            else:
-                store_graph_options[f"{dropdown_model_name}_{active_tab}"][i] = ''
-
-            if (tab_param is not None) and (tab_param != ""):
-                store_graph_options[f"{dropdown_model_name}_common"][i] = tab_param
-            else:
-                store_graph_options[f"{dropdown_model_name}_common"][i] = ''
-
-        #just some light conversions so that we don't get errors update the graphs on the sizes (linesize and markersize)
-        if store_graph_options[f"{dropdown_model_name}_common"][0] != '':
-            store_graph_options[f"{dropdown_model_name}_common"][0] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][0])
-
-        if store_graph_options[f"{dropdown_model_name}_{active_tab}"][1] != '':
-            store_graph_options[f"{dropdown_model_name}_{active_tab}"][1] = float(store_graph_options[f"{dropdown_model_name}_{active_tab}"][1])
-
-        #### Line parsing ####
-        if active_tab == "stelum":
-
-            figure = updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data)
-            return(figure, store_graph_options)
-
-        if active_tab == "pulse":
-            
-            ## first, we check which modes are going to get funky tonight
-            if n_names > 1:
-                if (modes_displayed == "") or (modes_displayed is None):
-                    #no, it's not allowed to view multiple degree AND multiple models at the same time, it's chaos on a graph
-                    #>:(
-                    store_graph_options.update({"displayed_modes":[1]})
-                else:
-                    if (len(modes_displayed) > 1):
-                        store_graph_options.update({"displayed_modes":[1]})
-                    else:
-                        store_graph_options.update({"displayed_modes":[int(modes_displayed)]})
-
-            elif n_names == 1:
-                print(modes_displayed)
-                if (modes_displayed == "") or (modes_displayed is None):
-                    #there, now you can view multiple modes :)
-                    store_graph_options.update({"displayed_modes":[store_displayed["L"][0][0][0]]}) #first value in the L array for the singular name
-                    #in case some person has a pulse file with only a l=2, who knows
-                    #the number of 0 in this list is illness though, what the heck
-                else:
-                    modes_displayed = list(map(int,modes_displayed.split(',')))
-                    store_graph_options.update({"displayed_modes":modes_displayed})
-
-            colors = np.array(["blue","red","green","purple"])
-            #yes I know this only accomodate up to l=4, ideally I change it to a cycle
-
-            if (modes_colors != "") and (modes_colors is not None):
-                modes_colors = modes_colors.split(";")
-            
-            #case where n_names doesn't matter, it takes color of the graph anyways
-            #because... consistency ?
-
-            if n_names == 1:
-                "In elif"
-                print(modes_colors)
-                if (modes_colors == "") or (modes_colors is None):
-                    if store_graph_options.get("displayed_modes"):
-                        colors_indexes = np.array(store_graph_options["displayed_modes"]) - 1
-                        coloring = colors[colors_indexes]
-                    #there, now you can view multiple modes :)
-                    store_graph_options.update({"modes_colors":coloring}) #colors associated to the given "Ls"
-                else:
-                    print("In else ! ")
-                    store_graph_options.update({"modes_colors":modes_colors})
-
-            figure = updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data)
-            return(figure, store_graph_options)
-
-
-    raise(dash.exceptions.PreventUpdate)
-
-def formatting_graph_options(sub_store_graph_options, x_values, y_values, value_x, value_y, tab, modes_displayed):
-
-    x_range, y_range, x_scale, y_scale, x_reversed, y_reversed, x_label, y_label = sub_store_graph_options
-
-    if x_label == "":
-        sub_store_graph_options[6] = value_x
-    if y_label == "":
-        sub_store_graph_options[7] = value_y
-
-    if tab == "stelum": #needed because not the same structure for pulse and stelum values
-
-        if (x_range == "") or (y_range == ""): #avoid double iterations if both are ""
-
-            min_x, max_x = np.min(x_values[0]), np.max(x_values[0])
-            min_y, max_y = np.min(y_values[0]), np.max(y_values[0])
-
-            range_x = [min_x,max_x]
-            range_y = [min_y,max_y]
-
-            for (x_value, y_value) in zip(x_values,y_values):
-
-                min_x, max_x = np.min(x_value), np.max(x_value)
-                min_y, max_y = np.min(y_value), np.max(y_value)
-
-                #ew :(
-                if min_x < range_x[0]:
-                    range_x[0] = min_x
-                if min_y < range_y[0]:
-                    range_y[0] = min_y
-                if max_x > range_x[1]:
-                    range_x[1] = max_x
-                if max_y > range_y[1]:
-                    range_y[1] = max_y
-
-        if (x_range != ""):
-
-            ranges = x_range.split(",")
-            range_x = [float(ranges[0]), float(ranges[1])]
-
-        if (y_range != ""):
-
-            ranges = y_range.split(",")
-            range_y = [float(ranges[0]), float(ranges[1])]
-
-        sub_store_graph_options[0] = range_x
-        sub_store_graph_options[1] = range_y
-
-        if x_reversed:
-            sub_store_graph_options[0] = sub_store_graph_options[0][::-1]
-        if y_reversed:
-            sub_store_graph_options[1] = sub_store_graph_options[1][::-1]
-
-        if x_scale == "log":
-            sub_store_graph_options[0] = np.log10(np.array(sub_store_graph_options[0]))
-        if y_scale == "log":
-            sub_store_graph_options[1] = np.log10(np.array(sub_store_graph_options[1]))
-
-    if tab == "pulse": #needed because not the same structure for pulse and stelum values
-
-        if (x_range == "") or (y_range == ""): #avoid double iterations if both are ""
-
-            min_x, max_x = np.min(x_values[0][0]), np.max(x_values[0][0])
-            min_y, max_y = np.min(y_values[0][0]), np.max(y_values[0][0])
-            #I mean come on, I can get away with NOT looping on all "L" surely
-            #maybe we have one or two friends out of the picture on the right side, and that's life, how about that
-
-            range_x = [min_x,max_x]
-            range_y = [min_y,max_y]
-
-            for (x_value, y_value) in zip(x_values[0],y_values[0]):
-
-                min_x, max_x = np.min(x_value), np.max(x_value)
-                min_y, max_y = np.min(y_value), np.max(y_value)
-
-                #ew :(
-                if min_x < range_x[0]:
-                    range_x[0] = min_x
-                if min_y < range_y[0]:
-                    range_y[0] = min_y
-                if max_x > range_x[1]:
-                    range_x[1] = max_x
-                if max_y > range_y[1]:
-                    range_y[1] = max_y
-
-            range_x[0], range_x[1] = range_x[0]-10, range_x[1]+10
-            range_y[0], range_y[1] = range_y[0]-10, range_y[1]+10
-
-        if (x_range != ""):
-
-            ranges = x_range.split(",")
-            range_x = [float(ranges[0]), float(ranges[1])]
-
-        if (y_range != ""):
-
-            ranges = y_range.split(",")
-            range_y = [float(ranges[0]), float(ranges[1])]
-
-        sub_store_graph_options[0] = range_x
-        sub_store_graph_options[1] = range_y
-
-        if x_reversed:
-            sub_store_graph_options[0] = sub_store_graph_options[0][::-1]
-        if y_reversed:
-            sub_store_graph_options[1] = sub_store_graph_options[1][::-1]
-
-        if x_scale == "log":
-            sub_store_graph_options[0] = np.log10(np.array(sub_store_graph_options[0]))
-        if y_scale == "log":
-            sub_store_graph_options[1] = np.log10(np.array(sub_store_graph_options[1]))
-
-    return(sub_store_graph_options)
-
-def updated_graph_stelum(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data):
-
-    sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
-    #this contain the general graph limits (x_labels, x_lims, and so forth)
-
-    fig = go.Figure()
-
-    colors = ["blue","red","green","black","orange","purple"]
-
-    #0:x_range, 1:y_range, 2:x_scale, 3:y_scale, 4:x_reversed, 5:y_reversed, 6:x_label, 7:y_label
-
-    for i, name in enumerate(names):
-
-        self_options = store_graph_options[f"{name}_stelum"] #obligatory stelum, it's the func for it after all
-        #0:linewidth, 1:linestyle, 2:model_label, 3:color
-        common_options = store_graph_options[f"{name}_common"]
-        #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
-
-        #it's time to set all the defaults yiho
-        common_params = [2,"solid",name,colors[i]]
-        self_params = ["void",4,"circle",colors[i]]
-
-        for j,(sparam,cparam) in enumerate(zip(self_options, common_options)):
-            if sparam != "":
-                self_params[j] = self_options[j]
-            if cparam != "":
-                common_params[j] = common_options[j]
-
-        if (common_options[3] != "") and (self_options[3] == ""):
-            #just to ensure markers are of the same color of the line if no color is specified :)
-            self_params[3] = common_params[3]
-
-        if self_options[0] == False: #no markers
-
-            fig.add_trace(go.Scatter(
-            x=x_values[i],
-            y=y_values[i],
-            mode="lines",
-            name=common_params[2],
-            #ok but what are those parameters names ?
-            #who calls the linestyle "dash" ????
-            line=dict(color=common_params[3],
-                      width=common_params[0],
-                      dash=common_params[1])))
-            
-        else: #markers
-            fig.add_trace(go.Scatter(
-            x=x_values[i],
-            y=y_values[i],
-            mode="lines+markers",
-            name=common_params[2],
-            #ok but what are those parameters names ?
-            #who calls the linestyle "dash" ????
-            line=dict(color=common_params[3],
-                      width=common_params[0],
-                      dash=common_params[1]),
-            marker=dict(
-                size=self_params[1],
-                symbol=self_params[2],
-                color = self_params[3]
-            )))
-
-    fig.update_layout(
-        font=dict(color="black"),
-        legend=dict(
-            xref='paper', yref='paper',  # default
-            x=0.99, y=0.99,
-            xanchor='right', yanchor='top',
-            traceorder='normal'
-        ),
-        margin=dict(l=10, r=10, t=10, b=10),
-        showlegend=True, #force the legend to be displayed even with one trace here
-        #I'd call plotly stupid for this not being default but oh well...
-        xaxis=dict(
-            showgrid=False,
-            title=sub_store_graph_options[6],
-            type=sub_store_graph_options[2],
-            range=sub_store_graph_options[0],
-            showexponent = 'all',
-            exponentformat = 'e',
-            ticks='outside',
-            ticklen=6,
-            tickwidth=2,
-        ),
-        yaxis=dict(
-            showgrid=False,
-            title=sub_store_graph_options[7],
-            type=sub_store_graph_options[3],
-            range=sub_store_graph_options[1],
-            showexponent = 'all',
-            exponentformat = 'e',
-            ticks='outside',
-            ticklen=6,
-            tickwidth=2,
-        )
-        )
-
-    if store_line_data is not None:
-        #lines additions, by default dashed
-
-        line_dropdown = np.array(store_line_data["line_dropdown"])
-        x_location = np.where(line_dropdown == value_x)[0]
-        y_location = np.where(line_dropdown == value_y)[0]
-
-        yaxis_range = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
-        xaxis_range = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
-
-        if sub_store_graph_options[3] == "log":
-            yaxis_range = [10**yaxis for yaxis in yaxis_range]
-        if sub_store_graph_options[2] == "log":
-            xaxis_range = [10**xaxis for xaxis in xaxis_range]
-
-        for index in x_location:
-            if store_line_data["line_direction"][index] == "x":
-                fig.add_trace(
-                    go.Scatter(
-                        x=[store_line_data["line_value"][index]] * 2,
-                        y=[yaxis_range[0], yaxis_range[1]],
-                        mode="lines",
-                        line=dict(
-                            width=store_line_data["line_width"][index],
-                            dash=store_line_data["line_style"][index],
-                            color=store_line_data["line_color"][index],
-                        ),
-                        name=store_line_data["line_label"][index],
-                        showlegend=True
-                    )
-                    )
-                
-        for index in y_location:
-            if store_line_data["line_direction"][index] == "y":
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[xaxis_range[0], xaxis_range[1]],
-                            y=[store_line_data["line_value"][index]] * 2,
-                            mode="lines",
-                            line=dict(
-                                width=store_line_data["line_width"][index],
-                                dash=store_line_data["line_style"][index],
-                                color=store_line_data["line_color"][index],
-                            ),
-                            name=store_line_data["line_label"][index],
-                            showlegend=True
-                        )
-                        )
-
-    return(fig)
-
-def updated_graph_pulse(store_graph_options, names, x_values, y_values, value_x, value_y, store_line_data):
-
-    sub_store_graph_options = store_graph_options[f"{value_x}_{value_y}"]
-
-    #even if I tried to make it MORE disgusting I couldn't
-    if (value_x == "Reduced_Pspacing") or (value_x == "Pspacing") and (value_y != "Reduced_Pspacing") or (value_y != "Pspacing"):
-        for i in range(len(y_values)):
-            for j in range(len(y_values[i])):
-                y_values[i][j] = y_values[i][j][:-1]
-    if (value_x != "Reduced_Pspacing") or (value_x != "Pspacing") and (value_y == "Reduced_Pspacing") or (value_y == "Pspacing"):
-        for i in range(len(x_values)):
-            for j in range(len(x_values[i])):
-                x_values[i][j] = x_values[i][j][:-1]
-
-    fig = go.Figure()
-
-    colors = ["blue","red","green","purple","orange","black"]
-    #should be a cycle or a rainbow or whatever can accomodate a larger number of stuff
-    #rainbow seems to be a recipe for inconsistency though.. but it's pretty I'll give you that
-    n_names = len(names)
-
-    #0:x_range, 1:y_range, 2:x_scale, 3:y_scale, 4:x_reversed, 5:y_reversed, 6:x_label, 7:y_label
-
-    if n_names > 1:
-
-        mode = store_graph_options["displayed_modes"][0]-1 #there is only one of those anyways
-        #-1 to account for python indexing, of course
-
-        for i, name in enumerate(names):
-
-            self_options = store_graph_options[f"{name}_pulse"] #obligatory pulse, it's the func for it after all
-            #0:linewidth, 1:linestyle, 2:model_label, 3:color
-            common_options = store_graph_options[f"{name}_common"]
-            #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
-
-            #it's time to set all the defaults yiho
-            common_params = [2,"solid",name,colors[i]]
-            self_params = ["void",4,"circle",colors[i]]
-
-            for j, (sparam,cparam) in enumerate(zip(self_options, common_options)):
-                if sparam != "":
-                    self_params[j] = self_options[j]
-                if cparam != "":
-                    common_params[j] = common_options[j]
-
-            if (common_options[3] != "") and (self_options[3] == ""):
-                #just to ensure markers are of the same color of the line if no color is specified :)
-                self_params[3] = common_params[3]
-
-            if self_options[0] == False: #no markers
-
-                fig.add_trace(go.Scatter(
-                x=x_values[i][mode], #for pulse, it's [name_i][l] always
-                y=y_values[i][mode],
-                mode="lines",
-                name=common_params[2],
-                #ok but what are those parameters names ?
-                #who calls the linestyle "dash" ????
-                line=dict(color=common_params[3],
-                        width=common_params[0],
-                        dash=common_params[1])))
-                
-            else: #markers
-                fig.add_trace(go.Scatter(
-                x=x_values[i][mode],
-                y=y_values[i][mode],
-                mode="lines+markers",
-                name=common_params[2],
-                #ok but what are those parameters names ?
-                #who calls the linestyle "dash" ????
-                line=dict(color=common_params[3],
-                        width=common_params[0],
-                        dash=common_params[1]),
-                marker=dict(
-                    size=self_params[1],
-                    symbol=self_params[2],
-                    color = self_params[3]
-                )))
-
-    if n_names == 1: #this time, we iterate on modes
-
-        name = names[0] #there is only one
-
-        modes = np.array(store_graph_options["displayed_modes"])-1
-        #-1 to account for python indexing, of course
-        colors = store_graph_options["modes_colors"] #here we take colors per modes, not the graph colors
-
-        for i, mode in enumerate(modes):
-
-            self_options = store_graph_options[f"{name}_pulse"] #obligatory pulse, it's the func for it after all
-            #0:linewidth, 1:linestyle, 2:model_label, 3:color
-            common_options = store_graph_options[f"{name}_common"]
-            #0:markers, 1:marker_size, 2:marker_style, 3:marker_color
-
-            #it's time to set all the defaults yiho
-            common_params = [2,"solid",name,colors[i]]
-            self_params = ["void",4,"circle",colors[i]]
-
-            for j,(sparam,cparam) in enumerate(zip(self_options, common_options)):
-                if sparam != "":
-                    self_params[j] = self_options[j]
-                if cparam != "":
-                    common_params[j] = common_options[j]
-
-            if (common_options[3] != "") and (self_options[3] == ""):
-                #just to ensure markers are of the same color of the line if no color is specified :)
-                self_params[3] = common_params[3]
-
-            if self_options[0] == False: #no markers
-
-                fig.add_trace(go.Scatter(
-                x=x_values[0][mode], #for pulse, it's [name_i][l] always
-                y=y_values[0][mode],
-                mode="lines",
-                name=common_params[2],
-                #ok but what are those parameters names ?
-                #who calls the linestyle "dash" ????
-                line=dict(color=common_params[3],
-                        width=common_params[0],
-                        dash=common_params[1])))
-                
-            else: #markers
-                fig.add_trace(go.Scatter(
-                x=x_values[0][mode],
-                y=y_values[0][mode],
-                mode="lines+markers",
-                name=common_params[2],
-                #ok but what are those parameters names ?
-                #who calls the linestyle "dash" ????
-                line=dict(color=common_params[3],
-                        width=common_params[0],
-                        dash=common_params[1]),
-                marker=dict(
-                    size=self_params[1],
-                    symbol=self_params[2],
-                    color = self_params[3]
-                )))
-
-    fig.update_layout(
-        font=dict(color="black"),
-        legend=dict(
-            xref='paper', yref='paper',  # default
-            x=0.99, y=0.99,
-            xanchor='right', yanchor='top',
-            traceorder='normal'
-        ),
-        margin=dict(l=10, r=10, t=10, b=10),
-        showlegend=True, #force the legend to be displayed even with one trace here
-        #I'd call plotly stupid for this not being default but oh well...
-        xaxis=dict(
-            showgrid=False,
-            title=sub_store_graph_options[6],
-            type=sub_store_graph_options[2],
-            range=sub_store_graph_options[0]
-        ),
-        yaxis=dict(
-            showgrid=False,
-            title=sub_store_graph_options[7],
-            type=sub_store_graph_options[3],
-            range=sub_store_graph_options[1]
-        )
-        )
-
-    if store_line_data is not None:
-        #lines additions, by default dashed
-
-        line_dropdown = np.array(store_line_data["line_dropdown"])
-        x_location = np.where(line_dropdown == value_x)[0]
-        y_location = np.where(line_dropdown == value_y)[0]
-
-        yaxis_range = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
-        xaxis_range = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
-
-        if sub_store_graph_options[3] == "log":
-            yaxis_range = [10**yaxis for yaxis in yaxis_range]
-        if sub_store_graph_options[2] == "log":
-            xaxis_range = [10**xaxis for xaxis in xaxis_range]
-
-        for index in x_location:
-            if store_line_data["line_direction"][index] == "x":
-                fig.add_trace(
-                    go.Scatter(
-                        x=[store_line_data["line_value"][index]] * 2,
-                        y=[yaxis_range[0], yaxis_range[1]],
-                        mode="lines",
-                        line=dict(
-                            width=store_line_data["line_width"][index],
-                            dash=store_line_data["line_style"][index],
-                            color=store_line_data["line_color"][index],
-                        ),
-                        name=store_line_data["line_label"][index],
-                        showlegend=True
-                    )
-                    )
-
-        for index in y_location:
-            if store_line_data["line_direction"][index] == "y":
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[xaxis_range[0], xaxis_range[1]],
-                            y=[store_line_data["line_value"][index]] * 2,
-                            mode="lines",
-                            line=dict(
-                                width=store_line_data["line_width"][index],
-                                dash=store_line_data["line_style"][index],
-                                color=store_line_data["line_color"][index],
-                            ),
-                            name=store_line_data["line_label"][index],
-                            showlegend=True
-                        )
-                        )
-
-    return(fig)
+    #checks if we're looking at stelum / pulse / eig
+
+    if n_display > 0:
+        #if there is at least one model to display
+
+        #Below is not the init, the init is in the memory imprints
+        #Instead, this is an update to the graph_options global var
+        #Which triggers everytime an Input field changes
+
+        #the way we do things for graph options, aka general graph parameters, is by keys for dropdown_menus
+        #keys are of value "dropdown_value" + "x", and so are axes dependant
+        graph_options.update({f"{dropdown_x_value}_x":{"ranges":x_range,"scale":x_scale,"reversed_axis":x_reversed,"label":x_label}})
+        graph_options.update({f"{dropdown_y_value}_y":{"ranges":y_range,"scale":y_scale,"reversed_axis":y_reversed,"label":y_label}})
+        #defaults are not set here yet, another good point for using globals is not caring that we have "None" values if they are there :)
+        #(This really only concern x_range and y_range)
+
+        #stores the parameters conserved between stelum, pulse and eig for a given name
+        graph_options[dropdown_graph_value]["common"].update({"line_width": line_width,
+                                                              "line_style": line_style,
+                                                              "line_label": line_label,
+                                                              "line_color": line_color,
+                                                              "marker_bind": marker_bind})
+
+        #And then, we update by tab, in which we set markers by default for PULSE:
+        if (active_tab == "pulse") and not graph_options[f"{dropdown_graph_value}"].get(active_tab):
+            marker_enabled = True
+
+        graph_options[dropdown_graph_value][active_tab].update({"marker_enabled": marker_enabled,
+                                                                  "marker_size": marker_size,
+                                                                  "marker_style": marker_style,
+                                                                  "marker_color": marker_color})
+        
+        if marker_bind == True:
+            marker_color = line_color
+
+        store_graph_color = {"color":line_color}#so... yeah
+        #I just want the graph color of markers and line to be synched if marker_bind is true...
+
+        graph_options[dropdown_graph_value]["mode"].update({"mode_displayed": mode_displayed,
+                                                             "mode_color": mode_color})
+
+        figure = draw_graph(active_tab, dropdown_graph_options, store_line_data, dropdown_x_value, dropdown_y_value)
+
+        return(figure, store_graph_color)
+
+    else:
+        return(dash.no_update)
 
 
 layout = html.Div(
@@ -1284,7 +890,7 @@ layout = html.Div(
                             id="axes-label-container",
                             style={"height": "20%", "width": "100%", "display": "flex", "flexDirection": "row", "alignItems": "center", "justifyContent": "center","marginTop":"2vh","marginBottom":"1vh"},
                             children=[
-                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"}, 
+                                # html.Div(style={"height": "100%", "width": "20%", "display": "flex", "alignItems": "center", "justifyContent": "center","marginRight":"1vw"},
                                 #         children=[html.Span("Axes labels: ", className="subtitles-config", style={"fontSize": "2vh"})]),
                                 html.Div(
                                     style={"height": "100%", "width": "100%", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center"},
@@ -1319,7 +925,7 @@ layout = html.Div(
                                         dbc.Input(id="graph-width", placeholder="linewidth", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-style", placeholder="linestyle", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="graph-label", placeholder="label", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(type="color", id="graph-color", value="#ff0000",style={"height":"15%","width":"80%"}, debounce=True),
+                                        html.Div(id="graph-color-container",children=[dbc.Input(type="color", id="graph-color", value="#0000FF",style={"height":"100%","width":"80%"}, debounce=True)], style={"height":"5vh","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center"})
                                     ]
                                 ),
                                 html.Div(
@@ -1328,37 +934,23 @@ layout = html.Div(
                                     children=[
                                         html.Div(style={"display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center", "height":"15%"},
                                             children=[
-                                                html.Span("markers: ", className="subtitles-config", style={"fontSize": "2vh","marginRight": "10%", "marginBottom":"0.5vh"}),
-                                                dbc.Checkbox(id="markers", value=False)]),
+                                                html.Div(style={"display":"flex", "flexDirection":"row","alignItems":"center","justifyContent":"center","width":"100%"},
+                                                         children = [
+                                                             html.Span("markers: ", className="subtitles-config", style={"fontSize": "2vh","marginRight": "3%"}),
+                                                            dbc.Checkbox(id="markers", value=False,style={"marginRight":"10%"}),
+                                                            html.Span("bind: ", id="marker-span-bind", className="subtitles-config", style={"fontSize": "2vh","marginRight": "3%"}),
+                                                            dbc.Checkbox(id="marker-bind", value=True)
+                                                            ]),
+                                                         ]),
                                         dbc.Input(id="marker-size", placeholder="marker size", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
                                         dbc.Input(id="marker-style", placeholder="marker style", style={"height": "15%", "width": "80%","marginBottom":"1vh"}),
-                                        dbc.Input(type="marker-color", id="marker-color", value="#ff0000",style={"height":"15%","width":"80%"}),
+                                        html.Div(id="marker-color-container",children=[dbc.Input(type="color", id="marker-color", value="#0000FF",style={"height":"100%","width":"80%"}, debounce=True)], style={"height":"5vh","width":"100%","display":"flex","flexDirection":"row","alignItems":"center","justifyContent":"center"})
                                     ]
                                 ),
                                 html.Div(
                                     id="color-picker-container",
                                     style={"height":"100%","width":"33.3%","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},
                                     children=[
-                                        # dbc.InputGroup(style={"width":"80%"},
-                                            # children = [
-                                            #     dbc.InputGroupText("Click to pick a color", style={
-                                            #                                                     "textAlign": "center",
-                                            #                                                     "display": "flex",
-                                            #                                                     "alignItems": "center",
-                                            #                                                     "justifyContent": "center",
-                                            #                                                     "width": "100%",
-                                            #                                                     "color":"white",
-                                            #                                                     "marginBottom":"1vh",
-                                            #                                                     "fontSize":"2vh"
-                                            #                                                 },),
-                                            #     dbc.Input(type="color", id="color-picker", value="#ff0000",style={"height":"5vh"}),
-                                            # ]
-                                        # ),
-                                        # html.Div(
-                                        #     id="selected-color",
-                                        #     style={"marginTop": "1vh", "fontSize": "2vh", "fontWeight": "bold"}
-                                        # ),
-                                        # html.Hr(id="separator", style={"width":"90%","display":"none"}),
                                         dbc.Input(id="displayed-modes", placeholder="degrees - 1,2,3,4", style={"height": "15%", "width": "80%","marginBottom":"1vh","marginTop":"1vh","display":"none"}),
                                         dbc.Input(id="modes-color", placeholder="color - blue;red;rgca()..", style={"height": "15%", "width": "80%","marginBottom":"1vh","display":"none"}),
                                     ]
@@ -1425,7 +1017,7 @@ layout = html.Div(
                                         dbc.Button("Add", id="btn-add-line", className="btn-add", style={"width": "80%", "height": "30%","marginBottom":"1vh"}),
                                         dbc.Button("Remove", id="btn-remove-line", className="btn-remove", style={"width": "80%", "height": "30%"})
                                     ]
-                                )   
+                                )
                             ]
                         )
                     ]

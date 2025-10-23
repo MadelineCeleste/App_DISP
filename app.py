@@ -60,10 +60,12 @@ store_stelum = dcc.Store(id="store-stelum", storage_type="session")
 store_pulse = dcc.Store(id="store-pulse", storage_type="session")
 store_eig = dcc.Store(id="store-eig", storage_type="session")
 store_active_tab = dcc.Store(id="store-active-tab", storage_type="session")
+store_active_tab_graph = dcc.Store(id="store-active-tab-graph", storage_type="session")
 store_displayed = dcc.Store(id="store-displayed", storage_type="session")
 store_dropdown_values = dcc.Store(id="store-dropdown-values",storage_type="session")
 store_graph_options = dcc.Store(id="store-graph-options", storage_type="session")
 store_line_data = dcc.Store(id="store-line-data", storage_type="session")
+store_graph_color = dcc.Store(id="store-graph-color", storage_type="session")
 #need one for each this way it's easy to keep track of everything in between tabs !
 
 sidebar = html.Div(
@@ -116,10 +118,12 @@ app.layout = dmc.MantineProvider(
             store_pulse,
             store_eig,
             store_active_tab,
+            store_active_tab_graph,
             store_displayed,
             store_dropdown_values,
             store_graph_options,
             store_line_data,
+            store_graph_color,
             *layouts
         ],
         style={"display": "block"}
@@ -134,4 +138,4 @@ if __name__ == '__main__':
     port = 8050 #offline port
 
     Timer(1, open_browser).start()
-    app.run(debug=True, port=port)
+    app.run(debug=True, port=port, threaded=True)
