@@ -6,7 +6,7 @@ from pathlib import Path
 import plotly.express as px
 import dash_mantine_components as dmc
 import numpy as np
-from DISP import data_reading, custom_calc
+from DISP import data_reading, custom_calc, save_graph
 from DISP.global_vars import data, graph_options, line_options
 import time
 import copy
@@ -404,7 +404,6 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
     x_opt = graph_options[f"{dropdown_x_value}_x"]
     y_opt = graph_options[f"{dropdown_y_value}_y"]
 
-
     def draw_func(data_x, data_y, *, graph_label, graph_color, graph_width, graph_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
 
         if kwargs.get("mode_color"):
@@ -443,11 +442,11 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
     def fetch_limits(range_limits, data_x, data_y):
 
         if range_limits == {}:
-            range_limits = {"x_min":np.min(data_x), "y_min":np.min(data_y),
-                            "x_max":np.max(data_x), "y_max":np.max(data_y)}
+            range_limits = {"x_min":np.nanmin(data_x), "y_min":np.nanmin(data_y),
+                            "x_max":np.nanmax(data_x), "y_max":np.nanmax(data_y)}
         else:
-            neo_limits = {"x_min":np.min(data_x), "y_min":np.min(data_y),
-                            "x_max":np.max(data_x), "y_max":np.max(data_y)}
+            neo_limits = {"x_min":np.nanmin(data_x), "y_min":np.nanmin(data_y),
+                            "x_max":np.nanmax(data_x), "y_max":np.nanmax(data_y)}
             
             for limit in ["x_min","y_min"]:
                 if range_limits[limit] > neo_limits[limit]:
@@ -582,18 +581,19 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
             line_args["x"] = line_value
             if line_limits == "" or line_limits == None:
                 line_args["y"] = [fig.layout.yaxis.range[0], fig.layout.yaxis.range[1]]
+                if fig.layout.yaxis.type == "log":
+                    line_args["y"] = list(map(lambda x: 10**x, line_args["y"]))
             else:
                 line_args["y"] = list(map(float,line_limits.split(",")))
-            if fig.layout.yaxis.type == "log":
-                line_args["y"] = list(map(lambda x: 10**x, line_args["y"]))
         else:
             line_args["y"] = line_value
             if line_limits == "" or line_limits == None:
                 line_args["x"] = [fig.layout.xaxis.range[0], fig.layout.xaxis.range[1]]
+                if fig.layout.xaxis.type == "log":
+                    line_args["x"] = list(map(lambda x: 10**x, line_args["x"]))
             else:
                 line_args["x"] = list(map(float,line_limits.split(",")))
-            if fig.layout.xaxis.type == "log":
-                line_args["x"] = list(map(lambda x: 10**x, line_args["x"]))
+
 
         return(line_args)
 
@@ -706,6 +706,21 @@ def update_line_options(trigger_id, line_label, store_datatable_data, dropdown_x
                 del line_options[opposite_key][line_label]
 
 @callback(
+    Input("save-graph-btn","n_clicks"),
+    State("dropdown-x","value"),
+    State("dropdown-y","value"),
+    State("store-active-tab","data"),
+    State("dropdown-graph","options"),
+    State("output-path","value"),
+    State("fig-name","value"),
+)
+def on_graph_save(save_click, dropdown_x_value, dropdown_y_value, store_active_tab, dropdown_graph_options, output_path, file_prefix):
+
+    save_graph.plt_graph_saving(dropdown_x_value, dropdown_y_value, store_active_tab["active_tab"], dropdown_graph_options, output_path, file_prefix, extension="pdf")
+
+
+
+@callback(
     Output("line-value","value"),
     Output("line-limits","value"),
     Output("line-direction","value"),
@@ -728,7 +743,7 @@ def memory_imprint_lines(line_label, dropdown_x_value, dropdown_y_value):
             return([line_options[f"{dropdown_y_value}_y"][line_label][key] for key in list(line_options[f"{dropdown_y_value}_y"][line_label].keys())])
         else:
             return(dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update)
-    except Exception as e:
+    except:
         return(dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update,dash.no_update)
 
 
@@ -928,7 +943,7 @@ layout = html.Div(
                                 html.Div(
                                     style={"width": "33.3%", "height": "100%", "display": "flex", "flexDirection": "column"},
                                     children=[
-                                        dbc.Button("Save Graph", id="btn-add-graph", className="btn-add", style={"width": "98%", "height": "49%", "marginRight": "2%"}),
+                                        dbc.Button("Save Graph", id="save-graph-btn", className="btn-add", style={"width": "98%", "height": "49%", "marginRight": "2%"}),
                                     ]
                                 )
                             ]

@@ -6,7 +6,10 @@ App_DISP.egg-info/dependency_links.txt
 App_DISP.egg-info/requires.txt
 App_DISP.egg-info/top_level.txt
 DISP/__init__.py
+DISP/custom_calc.py
 DISP/data_reading.py
+DISP/global_vars.py
+DISP/save_graph.py
 pages/__init__.py
 pages/page1_models.py
 pages/page2_dashboard.py
