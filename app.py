@@ -138,4 +138,4 @@ if __name__ == '__main__':
     port = 8050 #offline port
 
     Timer(1, open_browser).start()
-    app.run(debug=True, port=port, threaded=True)
+    app.run(debug=False, port=port, threaded=True)

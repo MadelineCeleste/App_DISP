@@ -25,6 +25,14 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
         x_opt = copy.deepcopy(graph_options[f"{dropdown_x_value}_x"])
         y_opt = copy.deepcopy(graph_options[f"{dropdown_y_value}_y"])
 
+        x_opt["ranges"] = np.array(x_opt["ranges"])
+        y_opt["ranges"] = np.array(y_opt["ranges"])
+
+        if x_opt["scale"] == "log":
+            x_opt["ranges"][x_opt["ranges"] < 0 ] = 0.0
+        if y_opt["scale"] == "log":
+            y_opt["ranges"][y_opt["ranges"] < 0 ] = 0.0
+
         linestyle_convert = {"dash":"dashed", "solid":"solid"}
         markerstyle_convert = {"circle":"."}
 
@@ -64,6 +72,11 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
                 data_x = data[name][active_tab][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][f"{dropdown_y_value}"]
 
+                if x_opt["scale"] == "log":
+                    data_x[data_x <= 0] = np.nan
+                if y_opt["scale"] == "log":
+                    data_y[data_y <= 0] = np.nan
+
                 draw_func(data_x, data_y, **common_opt, **self_opt)
 
         fig_name = f"{file_prefix}_{dropdown_x_value}_{dropdown_y_value}.{extension}"
@@ -89,6 +102,11 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
                     data_x = data[name][active_tab][mode][f'{dropdown_x_value}']
                     data_y = data[name][active_tab][mode][f'{dropdown_y_value}']
 
+                    if x_opt["scale"] == "log":
+                        data_x[data_x <= 0] = np.nan
+                    if y_opt["scale"] == "log":
+                        data_y[data_y <= 0] = np.nan
+
                     draw_func(data_x, data_y, **common_opt, **self_opt, **{"mode_displayed":mode_displayed[i], "mode_color":mode_color[i], "n_modes":True})
 
             elif n_models > 1:
@@ -104,31 +122,32 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
 
                     data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
                     data_x = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
+
+                    if x_opt["scale"] == "log":
+                        data_x[data_x <= 0] = np.nan
+                    if y_opt["scale"] == "log":
+                        data_y[data_y <= 0] = np.nan
+
                     draw_func(data_x, data_y, **common_opt, **self_opt, mode_displayed=mode_displayed)
 
         ax.set_xlabel(rf"${x_opt["label"]}$")
         if x_opt["reversed_axis"] == True:
-            ax.set_xlim(x_opt["ranges"][::-1])
-        else:
-            ax.set_xlim(x_opt["ranges"])
+            x_opt["ranges"] = x_opt["ranges"][::-1]
         ax.set_xscale(x_opt["scale"])
 
         ax.set_ylabel(rf"${y_opt["label"]}$")
         if y_opt["reversed_axis"] == True:
-            ax.set_ylim(y_opt["ranges"][::-1])
-        else:
-            ax.set_ylim(y_opt["ranges"])
+            y_opt["ranges"] = y_opt["ranges"][::-1]
         ax.set_yscale(y_opt["scale"])
 
-
-        print("x lines:", line_options[f"{dropdown_x_value}_x"])
-        print("y lines:", line_options[f"{dropdown_y_value}_y"])
+        ax.set_xlim(x_opt["ranges"])
+        ax.set_ylim(y_opt["ranges"])
 
         def add_line(line_label, opt, *, line_value, line_limits, line_direction, line_width, line_style, line_color):
 
             ranges = opt["ranges"]
             scale = opt["scale"]
-            
+
             try:
                 line_limits = list(map(float,line_limits.split(",")))
             except:

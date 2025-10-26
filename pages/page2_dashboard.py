@@ -106,19 +106,20 @@ def store_file_data(store_datatable_data):
 
         stelum_keys, pulse_keys = list(data[name]["stelum"].keys()), list(data[name]["pulse"].keys())
 
-        for key in custom_stelum_key:
-            if key not in stelum_keys:
-                if key == "N^2":
-                    data[name]["stelum"].update({key:custom_calc.brunt_vaisala_freq(data[name]["stelum"])})
-                #yes yes I know, I'm just lazy here
-                elif key == "L_1^2":
-                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],1)})
-                elif key == "L_2^2":
-                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],2)})
-                elif key == "L_3^2":
-                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],3)})
-                elif key == "L_4^2":
-                    data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],4)})
+        if spe[0] == 1: #aka, this is a stelum file
+            for key in custom_stelum_key:
+                if key not in stelum_keys:
+                    if key == "N^2":
+                        data[name]["stelum"].update({key:custom_calc.brunt_vaisala_freq(data[name]["stelum"])})
+                    #yes yes I know, I'm just lazy here
+                    elif key == "L_1^2":
+                        data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],1)})
+                    elif key == "L_2^2":
+                        data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],2)})
+                    elif key == "L_3^2":
+                        data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],3)})
+                    elif key == "L_4^2":
+                        data[name]["stelum"].update({key:custom_calc.lamb_freq(data[name]["stelum"],4)})
 
     dropdown_options = [{"label": name, 'value': name} for name in names]
 
@@ -406,6 +407,11 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
 
     def draw_func(data_x, data_y, *, graph_label, graph_color, graph_width, graph_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
 
+        if graph_options[f"{dropdown_x_value}_x"]["scale"] == "log":
+            data_x[data_x <= 0] = np.nan
+        if graph_options[f"{dropdown_y_value}_y"]["scale"] == "log":
+            data_y[data_y <= 0] = np.nan
+
         if kwargs.get("mode_color"):
             graph_color = kwargs["mode_color"]
             marker_color = kwargs["mode_color"]
@@ -440,6 +446,13 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
         return(trace_args)
     
     def fetch_limits(range_limits, data_x, data_y):
+
+        copy_x, copy_y = copy.deepcopy(data_x), copy.deepcopy(data_y)
+
+        # if scale_x == "log":
+        #     copy_x = copy_x[copy_x > 0]
+        # if scale_y == "log":
+        #     copy_y = copy_y[copy_y > 0]
 
         if range_limits == {}:
             range_limits = {"x_min":np.nanmin(data_x), "y_min":np.nanmin(data_y),
@@ -516,7 +529,7 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
 
                 data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
-                range_limits = fetch_limits(range_limits, data_x, data_y)
+                range_limits = fetch_limits(range_limits, data_x, data_y, x_opt["scale"], y_opt["scale"])
                 x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
                 y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
@@ -670,7 +683,7 @@ def update_line_options(trigger_id, line_label, store_datatable_data, dropdown_x
                 except:
                     line_value = kwargs["line_value"].split(":")
                     model_name, column_name = line_value
-                    model_index = np.where(np.array(store_datatable_data["names"]) == model_name)[0]
+                    model_index = np.where(np.array(store_datatable_data["names"]) == model_name)[0][0]
                     line_options[main_key][line_label]["line_value"] = float(store_datatable_data["table_data"][column_name][model_index])
 
                 line_style = kwargs["line_style"]
@@ -687,6 +700,15 @@ def update_line_options(trigger_id, line_label, store_datatable_data, dropdown_x
             if line_options[main_key].get(line_label):
                 key = "_".join(trigger_id.split('-'))
                 line_options[main_key][line_label][key] = kwargs[key]
+
+                if trigger_id == "line-value": #this is just to update correctly if we use name:column inputs
+                    try:
+                        line_options[main_key][line_label]["line_value"] = float(line_options[main_key][line_label]["line_value"])
+                    except:
+                        line_value = kwargs["line_value"].split(":")
+                        model_name, column_name = line_value
+                        model_index = np.where(np.array(store_datatable_data["names"]) == model_name)[0][0]
+                        line_options[main_key][line_label]["line_value"] = float(store_datatable_data["table_data"][column_name][model_index])
 
                 #setting back defaults if a value is fully erased
                 if trigger_id == "line-style":
@@ -716,7 +738,9 @@ def update_line_options(trigger_id, line_label, store_datatable_data, dropdown_x
 )
 def on_graph_save(save_click, dropdown_x_value, dropdown_y_value, store_active_tab, dropdown_graph_options, output_path, file_prefix):
 
-    save_graph.plt_graph_saving(dropdown_x_value, dropdown_y_value, store_active_tab["active_tab"], dropdown_graph_options, output_path, file_prefix, extension="pdf")
+    file_prefix = file_prefix.split(".")
+
+    save_graph.plt_graph_saving(dropdown_x_value, dropdown_y_value, store_active_tab["active_tab"], dropdown_graph_options, output_path, file_prefix[0], file_prefix[1])
 
 
 
@@ -916,7 +940,7 @@ layout = html.Div(
                                 ),
                                 html.Hr(style={"width": "100%","marginBottom":"2vh","marginTop":"0"}),
                                 dbc.Input(id="output-path", placeholder="Absolute path towards an output folder", type="text", style={"height": "5vh", "width": "80%", "marginBottom": "0.5vh"}),
-                                dbc.Input(id="fig-name", placeholder="Figure name (not including .extension)", type="text", style={"height": "5vh", "width": "80%"})
+                                dbc.Input(id="fig-name", placeholder="prefix.extension (--> name: prefix_x_y.ext)", type="text", style={"height": "5vh", "width": "80%"})
                             ]
                         ),
                         html.Div(

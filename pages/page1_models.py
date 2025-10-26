@@ -10,6 +10,7 @@ from collections import OrderedDict
 import platform
 import copy
 import numpy as np
+from DISP import global_vars
 
 page_url = "/files"
 
@@ -35,7 +36,7 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
 
     #['mass', 'lq_envl', 'lq_core', 'core_he', 'core_o', 'core_z', 'pf_envl', 'delta_core', 'lq_diff', 'diff_h', 'pf_diff', 'lq_flash', 'flash_c', 'pf_flash', 'conv_alpha', 'opc_metal', 'use_filters', 'lmin', 'lmax', 'period_scan', 'pmin', 'pmax', 'dp', 'frequency_scan', 'fmin', 'fmax', 'nf', 'nelems', 'compute_nad', 'mode_output', 'ad_filter', 'ad_highres']
     ## THIS IS ALL POSSIBLE KEYS
-    kept_columns = ["mass","lq_envl","lq_core","core_he","pf_envl","delta_core","lq_diff","diff_h","pf_diff","lq_flash","flash_c","pf_flash","lmin","lmax"]
+    kept_columns = global_vars.kept_columns
     retained_keys = []
     for key in keys:
         if key in kept_columns:
@@ -106,7 +107,7 @@ def dataTable_creation(store_datatable_data, table_data, names, spe, model_type,
                         "width":"100%",
                         "backgroundColor": "rgba(0,0,0,0.25)",
                         "minHeight":"100%"
-                    }, 
+                    },
                     style_cell={
                         "backgroundColor": "rgba(0,0,0,0.25)",
                         "color": "white",
@@ -238,7 +239,7 @@ layout = html.Div(
                                                             "width":"100%",
                                                             "backgroundColor": "rgba(0,0,0,0.25)",
                                                             "minHeight":"100%"
-                                                        }, 
+                                                        },
                                                         style_cell={
                                                             "backgroundColor": "rgba(0,0,0,0.25)",
                                                             "color": "white",
@@ -272,6 +273,6 @@ layout = html.Div(
                                             )
                                         ])
                  ],
-                 ) 
+)
     ]
 )

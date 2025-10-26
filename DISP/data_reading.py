@@ -3,6 +3,8 @@ import gzip
 from decimal import Decimal
 import numpy as np
 import pandas as pd
+import pathlib
+from DISP import global_vars
 
 def opener(path):
 
@@ -49,13 +51,23 @@ def gbuilder_parsing(path, model_name):
                 if x is not None:
                     step = free[line[3]]["min"]
                     data[line[3]] = [round(step*(i+1),5) for i in range(free[line[3]]["res"])]
-                    names = [f"{model_name}-{line[3]}_{num}" for num in data[line[3]]]
+                    # names = [f"{model_name}-{line[3]}_{num}" for num in data[line[3]]] #if I want the name in func of the free parameter
+
+                    #So this parses the name still by accounting the free parameter and the resolution right, but I wonder if that's correct
+                    #Maybe I should use the model name directly... that could avoid some missmatching
+                    #And it would also account for multiple free parameters and such
                 else:
                     try:
                         data[line[3]] = [float(line[4])]*free[key]["res"] #yes it's overkill to stock it all
                         #but better safe than sorry :)
                     except:
                         data[line[3]] = [line[4]]*free[key]["res"]
+
+    tot_models = 1
+    for key in list(free.keys()):
+        tot_models = tot_models*len(data[key])
+
+    names = [f"{model_name}-{i}" for i in range(tot_models)]
 
     return(data, names)
 
@@ -87,6 +99,8 @@ def datatable_mainframe(path):
         spe_path = ["","",""]
 
         gbuilder_path, sdb_config_path = '',''
+
+        data = False
 
         file_glob = sorted(path.iterdir()) #list of files in input_path directory
         names = [file.name for file in file_glob] # '' if its a dir
@@ -135,6 +149,34 @@ def datatable_mainframe(path):
             model_list["EIG"][number-1] = eig #to account for python indexing
             spe[number,2] = 1
 
+        return(data, model_names, model_list, spe, model_type)
+
+    else:
+        spe_path = ["","",""]
+
+        parent_file = pathlib.Path(path).parent.resolve()#for name
+        if "PULSE" in parent_file.name or "STELUM" in parent_file.name or "EIG" in parent_file.name:
+            parent_file = pathlib.Path(parent_file).parent.resolve()
+        parent_name = parent_file.name
+        file_name = path.name.split(".")[0]
+        splitted = file_name.split("-")
+        number = splitted[-1].split("N")
+        file_name = splitted[0] + "-" + number[-1]
+
+        kept_column = global_vars.kept_columns
+        data = {}
+        for key in kept_column:
+            data.update({key:"-"})
+
+        if "pulse" in file_name:
+            model_list = {"STELUM":[""],"PULSE":[path],"EIG":[""]}
+            spe = np.array([[0,1,0]])
+        elif "model" in file_name or "md" in file_name:
+            model_list = {"STELUM":[path],"PULSE":[""],"EIG":[""]}
+            spe = np.array([[1,0,0]])
+
+        model_names = [parent_name + "-" + file_name]
+        model_type = "-"
         return(data, model_names, model_list, spe, model_type)
 
 
