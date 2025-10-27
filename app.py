@@ -17,7 +17,7 @@ app = dash.Dash(
 
 #to have dark theme on, even though I didn't design a light theme
 #because I have respect for people's eyes (looking at you Stackoverflow)
-app.index_string = """  
+app.index_string = """
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
     <head>

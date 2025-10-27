@@ -19,7 +19,7 @@ def opener(path):
 
     return(data)
 
-def gbuilder_parsing(path, model_name):
+def gbuilder_parsing(path):
 
     data = {}
     free = {}
@@ -67,9 +67,7 @@ def gbuilder_parsing(path, model_name):
     for key in list(free.keys()):
         tot_models = tot_models*len(data[key])
 
-    names = [f"{model_name}-{i}" for i in range(tot_models)]
-
-    return(data, names)
+    return(data)
 
 def sdb_config_parsing(path):
 
@@ -120,7 +118,7 @@ def datatable_mainframe(path):
             if name == "gbuilder.conf":
 
                 gbuilder_path = file_glob[i] #to parse names
-                data, model_names = gbuilder_parsing(gbuilder_path, model_name)
+                data = gbuilder_parsing(gbuilder_path)
 
             if name == "SDB_EVO-std.cf":
                 sdb_config_path = file_glob[i] #parsing model_type
@@ -132,6 +130,12 @@ def datatable_mainframe(path):
         for i,path in enumerate(spe_path):
             if path != "":
                 model_list[keys[i]] = sorted(path.iterdir())
+                if i == 0 or i == 1:#holy mother of spagetthi coding
+                    lenght = len(model_list[keys[i]])
+
+        model_names = np.array([f"{model_name}-{num}" for num in range(1,lenght+1)])
+        #yeah that won't work for evol models... but uh, the whole gathering model part is to be done again
+        #it was done first and not touched afterwards so obviously its terrible
 
         spe = np.zeros((len(data[list(data.keys())[0]]),3))
 

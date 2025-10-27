@@ -529,7 +529,7 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
 
                 data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
-                range_limits = fetch_limits(range_limits, data_x, data_y, x_opt["scale"], y_opt["scale"])
+                range_limits = fetch_limits(range_limits, data_x, data_y)
                 x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
                 y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
