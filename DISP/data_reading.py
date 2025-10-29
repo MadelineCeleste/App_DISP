@@ -144,14 +144,16 @@ def datatable_mainframe(path):
         if len(model_list["PULSE"]) > 0:
             spe[:,1] = 1
 
-        eig_names = model_list["EIG"].copy()
+        # eig_names = model_list["EIG"].copy()
         model_list["EIG"] = [""]*len(model_names)
-        for eig in eig_names:
-            named = eig.name
-            named = named.split("-")
-            number = int(named[1])
-            model_list["EIG"][number-1] = eig #to account for python indexing
-            spe[number,2] = 1
+        #we don't do EIG for now
+
+        # for eig in eig_names:
+        #     named = eig.name
+        #     named = named.split("-")
+        #     number = int(named[1])
+        #     model_list["EIG"][number-1] = eig #to account for python indexing
+        #     spe[number,2] = 1
 
         return(data, model_names, model_list, spe, model_type)
 

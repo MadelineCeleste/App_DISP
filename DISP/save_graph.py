@@ -73,8 +73,10 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
                 data_y = data[name][active_tab][f"{dropdown_y_value}"]
 
                 if x_opt["scale"] == "log":
+                    data_x = copy.deepcopy(data_x)
                     data_x[data_x <= 0] = np.nan
                 if y_opt["scale"] == "log":
+                    data_y = copy.deepcopy(data_y)
                     data_y[data_y <= 0] = np.nan
 
                 draw_func(data_x, data_y, **common_opt, **self_opt)
@@ -121,7 +123,7 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
                     mode_displayed = int(mode_opt["mode_displayed"].split(",")[0])
 
                     data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
-                    data_x = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
+                    data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
 
                     if x_opt["scale"] == "log":
                         data_x[data_x <= 0] = np.nan

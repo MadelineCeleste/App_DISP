@@ -408,8 +408,10 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
     def draw_func(data_x, data_y, *, graph_label, graph_color, graph_width, graph_style, marker_enabled, marker_color, marker_size, marker_style, marker_bind, **kwargs): #I'm learning so much about those unpacking operators :D
 
         if graph_options[f"{dropdown_x_value}_x"]["scale"] == "log":
+            data_x = copy.deepcopy(data_x)
             data_x[data_x <= 0] = np.nan
         if graph_options[f"{dropdown_y_value}_y"]["scale"] == "log":
+            data_y = copy.deepcopy(data_y)
             data_y[data_y <= 0] = np.nan
 
         if kwargs.get("mode_color"):
@@ -447,7 +449,7 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
     
     def fetch_limits(range_limits, data_x, data_y):
 
-        copy_x, copy_y = copy.deepcopy(data_x), copy.deepcopy(data_y)
+        # copy_x, copy_y = copy.deepcopy(data_x), copy.deepcopy(data_y)
 
         # if scale_x == "log":
         #     copy_x = copy_x[copy_x > 0]
@@ -484,8 +486,10 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
             data_y = data[name][active_tab][f"{dropdown_y_value}"]
 
             range_limits = fetch_limits(range_limits, data_x, data_y)
-            x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
-            y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
+            if x_opt["ranges"] == "" or x_opt["ranges"] is None:
+                x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+            if y_opt["ranges"] == "" or y_opt["ranges"] is None:
+                y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
             trace_args = draw_func(data_x, data_y, **common_opt, **self_opt)
             fig.add_trace(go.Scatter(**trace_args))
@@ -508,8 +512,10 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
                 data_x = data[name][active_tab][mode][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode][f"{dropdown_y_value}"]
                 range_limits = fetch_limits(range_limits, data_x, data_y)
-                x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
-                y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
+                if x_opt["ranges"] == "" or x_opt["ranges"] is None:
+                    x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+                if y_opt["ranges"] == "" or y_opt["ranges"] is None:
+                    y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
                 trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, **{"mode_displayed":mode_displayed[i], "mode_color":mode_color[i]})
                 fig.add_trace(go.Scatter(**trace_args))
@@ -530,8 +536,10 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
                 data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
                 data_y = data[name][active_tab][mode_displayed][f"{dropdown_y_value}"]
                 range_limits = fetch_limits(range_limits, data_x, data_y)
-                x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
-                y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
+                if x_opt["ranges"] == "" or x_opt["ranges"] is None:
+                    x_opt["ranges"] = [range_limits["x_min"],range_limits["x_max"]]
+                if y_opt["ranges"] == "" or y_opt["ranges"] is None:
+                    y_opt["ranges"] = [range_limits["y_min"],range_limits["y_max"]]
 
                 trace_args = draw_func(data_x, data_y, **common_opt, **self_opt, mode_displayed=mode_displayed)
                 fig.add_trace(go.Scatter(**trace_args))
