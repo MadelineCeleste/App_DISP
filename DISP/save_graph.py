@@ -25,6 +25,16 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
         x_opt = copy.deepcopy(graph_options[f"{dropdown_x_value}_x"])
         y_opt = copy.deepcopy(graph_options[f"{dropdown_y_value}_y"])
 
+        try:
+            x_opt["ranges"] = list(map(float,x_opt["ranges"].split(",")))
+        except:
+            x_opt["ranges"] = x_opt["ranges"]
+
+        try:
+            y_opt["ranges"] = list(map(float,y_opt["ranges"].split(",")))
+        except:
+            y_opt["ranges"] = y_opt["ranges"]
+
         x_opt["ranges"] = np.array(x_opt["ranges"])
         y_opt["ranges"] = np.array(y_opt["ranges"])
 
