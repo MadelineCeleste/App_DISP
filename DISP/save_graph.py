@@ -53,7 +53,7 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
                 marker_color = kwargs["mode_color"]
 
             if kwargs.get("mode_displayed") and kwargs.get("n_modes"):
-                graph_label = f"l{kwargs["mode_displayed"]}"
+                graph_label = f"l{kwargs['mode_displayed']}"
 
             if marker_bind == True:
                 marker_color = graph_color
