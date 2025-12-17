@@ -530,7 +530,11 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
                 self_opt = graph_options[name][active_tab]
 
                 mode_opt = graph_options[name]["mode"]
-                mode_displayed = int(mode_opt["mode_displayed"].split(",")[0])
+                try:
+                    mode_displayed = int(mode_opt["mode_displayed"].split(",")[0])
+                except:
+                    mode_displayed = 1
+                    
                 #by default always only show the first of mode_displayed
 
                 data_x = data[name][active_tab][mode_displayed][f"{dropdown_x_value}"]
