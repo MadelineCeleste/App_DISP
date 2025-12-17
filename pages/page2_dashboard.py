@@ -419,7 +419,7 @@ def draw_graph(active_tab, dropdown_graph_options, dropdown_x_value, dropdown_y_
             marker_color = kwargs["mode_color"]
 
         if kwargs.get("mode_displayed"):
-            graph_label = f"l{kwargs["mode_displayed"]} {graph_label}"
+            graph_label = f"l{kwargs['mode_displayed']} {graph_label}"
 
         if marker_bind == True:
             marker_color = graph_color
