@@ -142,12 +142,12 @@ def plt_graph_saving(dropdown_x_value, dropdown_y_value, active_tab, dropdown_gr
 
                     draw_func(data_x, data_y, **common_opt, **self_opt, mode_displayed=mode_displayed)
 
-        ax.set_xlabel(rf"${x_opt["label"]}$")
+        ax.set_xlabel(rf"${x_opt['label']}$")
         if x_opt["reversed_axis"] == True:
             x_opt["ranges"] = x_opt["ranges"][::-1]
         ax.set_xscale(x_opt["scale"])
 
-        ax.set_ylabel(rf"${y_opt["label"]}$")
+        ax.set_ylabel(rf"${y_opt['label']}$")
         if y_opt["reversed_axis"] == True:
             y_opt["ranges"] = y_opt["ranges"][::-1]
         ax.set_yscale(y_opt["scale"])
